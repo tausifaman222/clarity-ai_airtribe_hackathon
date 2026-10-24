@@ -1,0 +1,1 @@
+- [Groq provider choice](groq.md) — User requested Groq; reasoning models need extra token allowance for short JSON responses.

@@ -40,10 +40,14 @@ async function callLLM(system, user, maxTokens, timeoutMs) {
     const data = await res.json();
     return (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
   }
+  // Groq's GPT-OSS models count reasoning tokens against the completion budget.
+  const groqReasoning = new URL(c.baseUrl).hostname === "api.groq.com" && c.model.startsWith("openai/gpt-oss-");
   const res = await fetch(`${c.baseUrl}/chat/completions`, {
     method: "POST", signal,
     headers: { Authorization: `Bearer ${c.key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: c.model, max_tokens: maxTokens, response_format: { type: "json_object" },
+    body: JSON.stringify({ model: c.model, max_tokens: groqReasoning ? maxTokens + 4096 : maxTokens,
+      ...(groqReasoning ? { reasoning_effort: "low" } : {}),
+      response_format: { type: "json_object" },
       messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
   });
   if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 300)}`);

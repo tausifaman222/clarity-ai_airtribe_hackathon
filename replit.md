@@ -7,6 +7,7 @@
 - Keep the existing Express and plain JavaScript structure.
 
 ## Configuration
+- This project uses Groq through its OpenAI-compatible endpoint: `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, and `LLM_MODEL=openai/gpt-oss-120b`. The key stays in `LLM_API_KEY`.
 - Without an AI API key, the app runs in its explicitly labelled offline mode. Feedback is keyword-based, not a real AI assessment.
 - Live AI requires a supported provider key (`LLM_API_KEY`, or the provider-specific alternatives documented in `llm.js`). Set `LLM_MODEL` to a valid model supported by that provider. OpenAI-compatible services also use `LLM_PROVIDER=openai` and, when needed, `LLM_BASE_URL`.
 - ElevenLabs voice output is optional and requires `ELEVENLABS_API_KEY`. Without it, the app uses browser speech synthesis.
