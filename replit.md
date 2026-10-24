@@ -1,10 +1,12 @@
-# Sayso on Replit
+# Clarity AI on Replit
 
 ## Run
 - Use the **Start application** workflow (the Run button), or run `npm start`.
 - The Express server serves the frontend and API on `0.0.0.0:5000` by default. `PORT` can override the port.
 - Dependencies are installed with npm and recorded in `package-lock.json`. No frontend build step is needed.
 - Keep the existing Express and plain JavaScript structure.
+- The home and inline stage/mode setup follow the approved Clarity AI canvas mockup. Communication confidence is the mission; startup pitching is the first available practice scenario.
+- Preserve existing `sayso.*` browser-storage keys so the rename doesn't discard saved sessions and reports.
 
 ## Configuration
 - This project uses Groq through its OpenAI-compatible endpoint: `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, and `LLM_MODEL=openai/gpt-oss-120b`. The key stays in `LLM_API_KEY`.

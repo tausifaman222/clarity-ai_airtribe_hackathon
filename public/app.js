@@ -1,6 +1,7 @@
 // Sayso client: hash-routed SPA. State lives in memory + sessionStorage (no auth, no database).
 import { STAGES, stageById, PRO_TIPS, FILLERS, HEDGES, wordCount, DEMO_PITCH } from "./rubrics.js";
 import { icon } from "./icons.js";
+import { renderHome } from "./home.js";
 
 // ---------- utilities ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -222,6 +223,7 @@ function router() {
   tts.stop(); closeOverlay();
   const p = (location.hash.replace(/^#/, "").split("?")[0]) || "/";
   const view = ROUTES[p] || home;
+  document.body.classList.toggle("home-page", view === home);
   renderStepper(STEP_OF[p] ?? 0);
   const v = $("#view"); v.innerHTML = "";
   const root = document.createElement("div"); root.className = "view"; v.append(root);
@@ -257,35 +259,7 @@ const deniedCard = () => `<div class="denied" role="alert"><b>${icon("micOff", 1
 
 // ======================= SCREEN 1: HOME =======================
 function home(root) {
-  root.innerHTML = `
-  <section class="hero center">
-    <div class="eyebrow">AI COMMUNICATION SIMULATOR</div>
-    <h1>Say it so it lands.</h1>
-    <p class="sub">Knowing the language isn't the problem. Delivering the idea is. Rehearse your high-stakes moments with an AI that judges what you say, not your grammar. English, Hindi, or Hinglish.</p>
-  </section>
-  <h2 class="label">What do you want to practice?</h2>
-  <div class="grid g3">
-    <div class="card hover active use" id="pitchCard" role="link" tabindex="0" aria-label="Pitch an idea: start">
-      <div class="top"><span class="ico">${icon("rocket", 24)}</span><span class="pill live">Live</span></div>
-      <h3>Pitch an idea</h3>
-      <p>Pitch your startup to an AI investor. Get coached, or face the verdict.</p>
-      <button class="btn primary" id="startBtn" tabindex="-1">Start ${icon("arrowRight", 16)}</button>
-    </div>
-    <div class="card use locked" aria-disabled="true">
-      <div class="top"><span class="ico">${icon("handshake", 24)}</span><span class="pill">${icon("lock", 12)} Coming soon</span></div>
-      <h3>Negotiate a salary</h3>
-      <p>Ask for what you're worth, without flinching.</p>
-    </div>
-    <div class="card use locked" aria-disabled="true">
-      <div class="top"><span class="ico">${icon("presentation", 24)}</span><span class="pill">${icon("lock", 12)} Coming soon</span></div>
-      <h3>Nail a presentation</h3>
-      <p>Hold the room from first slide to last.</p>
-    </div>
-  </div>
-  <div class="footer-strip">🎙 Voice-first · 🌐 English · हिंदी · Hinglish · ⚡ Report in seconds</div>`;
-  const card = $("#pitchCard", root);
-  card.addEventListener("click", () => go("/stage"));
-  card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go("/stage"); } });
+  renderHome(root, { icon, stages: STAGES, state: S, save, navigate: go, health: HEALTH, onLeave });
 }
 
 // ======================= SCREEN 2: STAGE =======================
