@@ -12,6 +12,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./ser
 import { registerCommunity, saveVerifiedAttempt, database, userIdOf } from "./server/community.js";
 import { PITCH_SECONDS } from "./public/practice-config.js";
 import { addReportGuidance } from "./public/pitch-guidance.js";
+import { registerAccountAuth } from "./server/account-auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,6 +20,12 @@ app.disable("x-powered-by");
 app.set("trust proxy", true);
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use(express.json({ limit: "200kb" }));
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "microphone=(self)");
+  next();
+});
 if (process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY) {
   app.use(clerkMiddleware((req) => ({
     publishableKey: publishableKeyFromHost(
@@ -27,6 +34,8 @@ if (process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY) {
     ),
   })));
 }
+const accountAuth = registerAccountAuth(app, { db: database });
+app.use("/api", accountAuth.sessionMiddleware);
 app.get("/auth.bundle.js", (req, res) => {
   res.set("Cache-Control", "no-store");
   const configured = process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY;
@@ -34,12 +43,6 @@ app.get("/auth.bundle.js", (req, res) => {
 });
 app.get(["/sign-in", "/sign-in/*", "/sign-up", "/sign-up/*"], (req, res) => res.sendFile(path.join(__dirname, "public/auth.html")));
 registerCommunity(app);
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "microphone=(self)");
-  next();
-});
 app.use(express.static(path.join(__dirname, "public"), { extensions: ["html"], maxAge: "5m" }));
 
 // ---------- small helpers ----------

@@ -10,9 +10,9 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
         <button type="button" data-input="typed" aria-pressed="false">Typed pitches</button>
       </div>
     </div>
-    <p class="small muted" style="margin:16px 0">Scores are out of 100 and reflect an AI review of one explanation—not business potential. Ties share a rank. Offline feedback and sample demo pitches are not ranked.</p>
+    <p class="small muted" style="margin:16px 0">Scores are out of 100 and reflect an AI review of one explanation—not business potential. Ties share a rank. Offline feedback and sample demo pitches are not ranked. Google sign-in is coming soon.</p>
     <div class="card" id="rankings" aria-live="polite"></div>
-    <section class="card sec" id="myScores"><h2>Your verified scores</h2><p class="muted">Checking your account…</p></section>`;
+    <section class="card sec" id="myScores"><h2>Your saved scores</h2><p class="muted">Checking your account…</p></section>`;
   const load = async () => {
     const version = ++revision, container = root.querySelector("#rankings");
     container.innerHTML = "<p>Loading published scores…</p>";
@@ -42,7 +42,7 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
     try {
       const result = await api("/api/me/attempts");
       if (!alive || version !== accountRevision) return;
-      container.innerHTML = `<h2>Your verified scores</h2><p class="small muted">Scores are private until you publish. Choose a public name; your Google email is never shown.</p>
+      container.innerHTML = `<h2>Your saved scores</h2><p class="small muted">Scores stay private until you publish one with a public name. Your username and password are never shown on the leaderboard.</p>
         ${result.attempts.length ? '<div class="my-score-list"></div><button class="btn sm" id="withdrawScores">Remove all my scores from the leaderboard</button><p id="withdrawStatus" role="status"></p>' : '<p style="margin-top:16px">No verified scores yet. Complete an AI-reviewed pitch while signed in to save your first one.</p>'}`;
       const list = container.querySelector(".my-score-list");
       result.attempts.forEach(attempt => {
@@ -67,8 +67,8 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
     } catch (error) {
       if (!alive || version !== accountRevision) return;
       container.innerHTML = error.status === 401
-        ? '<h2>Your verified scores</h2><p>Sign in with Google before finishing your next pitch to save a verified score. Publishing is optional.</p><a class="btn primary" href="/sign-in" style="margin-top:16px">Sign in with Google</a>'
-        : `<h2>Your verified scores</h2><p role="alert">${esc(error.message)}</p>`;
+        ? '<h2>Your saved scores</h2><p>Sign in or create a username and password to save scores privately. Publishing is optional; Google sign-in is coming soon.</p><div class="actions" style="margin-top:16px"><a class="btn" href="/sign-in">Sign in</a><a class="btn primary" href="/sign-up">Create account</a></div>'
+        : `<h2>Your saved scores</h2><p role="alert">${esc(error.message)}</p>`;
     }
   };
   const authChanged = () => { if (alive) myScores(); };
@@ -85,8 +85,8 @@ export function mountPublishPanel(parent, report, { api, esc, onPublished }) {
     const note = report.offline ? "Offline feedback isn't eligible for the leaderboard."
       : report.demo || report.leaderboardStatus === "demo_excluded" ? "Sample demo pitches aren't eligible for the leaderboard."
       : report.leaderboardStatus === "save_failed" ? "Your report is ready, but its verified score couldn't be saved. Please try again later with a new pitch."
-      : "Sign in with Google before completing your next pitch to save a verified leaderboard score.";
-    panel.innerHTML = `<p class="small muted">${note}</p>${!report.offline && !report.demo && report.leaderboardStatus !== "save_failed" ? '<a class="linkbtn" href="/sign-in">Sign in with Google</a>' : ""}`;
+      : "Create an account or sign in before your next pitch to save a verified score. Your score stays private unless you choose to publish it.";
+    panel.innerHTML = `<p class="small muted">${note}</p>${!report.offline && !report.demo && report.leaderboardStatus !== "save_failed" ? '<div class="actions" style="margin-top:12px"><a class="linkbtn" href="/sign-in">Sign in</a><a class="linkbtn" href="/sign-up">Create account</a></div>' : ""}`;
     return;
   }
   if (report.published) {

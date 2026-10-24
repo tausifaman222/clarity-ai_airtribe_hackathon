@@ -27,6 +27,20 @@
 .auth-page h1 { font-size: clamp(28px, 5vw, 40px); }
 .auth-page > p { max-width: 480px; }
 .auth-back { color: var(--accent); text-underline-offset: 4px; }
+.auth-card { width: min(100%, 500px); padding: clamp(24px, 5vw, 40px); border: 1px solid var(--border); border-radius: 20px; background: var(--surface, #fffdf7); box-shadow: 0 12px 36px #233d3914; text-align: left; }
+.auth-card > img { display: block; margin: 0 auto 26px; }
+.auth-card h1, .auth-kicker, .auth-card > .muted { text-align: center; }
+.auth-kicker { margin-bottom: 8px; font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--accent); }
+.auth-card > .muted { margin: 8px auto 24px; line-height: 1.65; }
+.account-field { display: grid; gap: 7px; margin-top: 16px; font-weight: 600; font-size: 14px; }
+.account-field .field { width: 100%; min-height: 48px; }
+.auth-card form > .btn { width: 100%; margin-top: 16px; }
+.account-feedback { min-height: 1.5em; margin-top: 10px; color: var(--danger); font-size: 14px; }
+.account-safety { margin-top: 16px; line-height: 1.65; }
+.account-safety b { color: var(--text); }
+.account-switch { margin-top: 18px; font-size: 14px; }
+.google-coming-soon { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.auth-google { display: block; width: max-content; margin: 20px auto; }
 .cl-formFieldInput::placeholder { color: #687c76; opacity: 1; }
 .cl-socialButtonsBlockButton:hover { background: #eee9da; }
 .pitch-time { justify-self: end; font-size: 15px; line-height: 1.4; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; }

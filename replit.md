@@ -15,7 +15,10 @@
 - ElevenLabs voice output is optional and requires `ELEVENLABS_API_KEY`. Without it, the app uses browser speech synthesis.
 - Add credentials through Replit Secrets, never source files. Restart the workflow after configuration changes.
 - `GET /api/health` reports AI mode and voice configuration.
-- Google sign-in uses Replit-managed Clerk. The canonical proxy is mounted before body parsing. Provision through the Clerk setup flow, not hand-edited keys. Without configuration, sign-in shows an explicit setup-incomplete page; guest practice remains available.
+- Current app accounts use username/password sign-in backed by PostgreSQL. Passwords are stored as per-account scrypt hashes; random session tokens are held in HttpOnly, SameSite cookies and only their hashes are stored in PostgreSQL. Keep the short-lived session and sign-in/signup safeguards in `server/account-auth.js`.
+- Do not display Google sign-in as active until Google OAuth is provisioned and verified. It is currently labelled “Coming soon”; do not replace that with a fake account or identity. Username-only accounts do not have email-based password recovery; keep that limit explicit unless a verified recovery method is added.
+- Replit Publish applies managed PostgreSQL schema changes to production. Update the schema reference and development database; never add deployment-time or startup-time DDL or directly write to the managed production schema.
+- The canonical Clerk proxy/wiring is preserved for future provider configuration but does not replace the current username/password account flow.
 - Authentication assets are rebuilt at startup into ignored `generated-artifacts/auth/` so production receives its own managed key/proxy settings.
 
 ## Browser and storage
@@ -26,7 +29,7 @@
 - Leaderboard publishing is opt-in and uses a chosen public name, never an email. Only server-produced AI scores are eligible; offline and sample demo reports are excluded. Compare best scores within the same stage and spoken/typed group.
 
 ## Regression checks
-- Run `npm test` for disposable PostgreSQL leaderboard checks and Playwright regression tests. Replit uses the configured Nix Chromium; other hosts without system Chromium should run `npm run test:install` once first.
+- Run `npm test` for disposable PostgreSQL account, score-ownership, and report-plan checks plus Playwright regression tests. Replit uses the configured Nix Chromium; other hosts without system Chromium should run `npm run test:install` once first.
 - `npm run test:api` checks server contracts without a browser; `npm run test:browser` checks the typed-pitch UI.
 - Tests use an isolated source copy on port 5011, with no inherited provider keys and outbound fetch blocked. They never switch the live app to offline mode or write its usage counters.
 - Failure artifacts go in ignored `generated-artifacts/test-results/`. See README.md for scope and setup.

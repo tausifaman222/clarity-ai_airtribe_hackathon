@@ -5,7 +5,7 @@ import pg from "pg";
 export const database = process.env.DATABASE_URL
   ? new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000, max: 5 }) : null;
 
-export const userIdOf = req => req.auth ? getAuth(req).userId : null;
+export const userIdOf = req => req.localUserId || (req.auth ? getAuth(req).userId : null);
 const stages = new Set(["idea", "preseed", "seed", "seriesa"]);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

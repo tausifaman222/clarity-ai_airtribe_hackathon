@@ -219,3 +219,16 @@ test("Showtime countdown appears only at 45 seconds left and submits at five min
   const request = await submission;
   expect(request.postDataJSON()).toMatchObject({ transcript: pitch, metrics: { durationSec: 300, typed: true } });
 });
+
+test("username sign-in screens explain the account model and keep guest practice available", async ({ page }) => {
+  await page.goto("/sign-up");
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await expect(page.getByLabel("Username")).toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("minlength", "12");
+  await expect(page.getByText("Google sign-in · Coming soon")).toBeVisible();
+  await expect(page.getByText(/Password recovery isn't available yet/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Keep practising as a guest." })).toBeVisible();
+  await page.getByRole("link", { name: /Sign in/ }).last().click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
+});
