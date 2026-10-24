@@ -17,3 +17,9 @@
 ## Browser and storage
 - Chrome is recommended for speech recognition. Microphone permission is required; typed input is also available.
 - Reports use browser session storage. Anonymous counters are written to `data/stats.json`; this is not a database.
+
+## Regression checks
+- Run `npm test`. Replit uses the configured Nix Chromium; other hosts without system Chromium should run `npm run test:install` once first.
+- `npm run test:api` checks server contracts without a browser; `npm run test:browser` checks the typed-pitch UI.
+- Tests use an isolated source copy on port 5011, with no inherited provider keys and outbound fetch blocked. They never switch the live app to offline mode or write its usage counters.
+- Failure artifacts go in ignored `generated-artifacts/test-results/`. See README.md for scope and setup.

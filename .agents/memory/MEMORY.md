@@ -1,1 +1,2 @@
 - [Groq provider choice](groq.md) — User requested Groq; reasoning models need extra token allowance for short JSON responses.
+- [Browser tests on Nix](browser-tests.md) — Use compatible Chromium and keep test credentials and counters separate from the live preview.

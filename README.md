@@ -86,3 +86,25 @@ The report shows the evaluator's verdict, its agreement with Meera, its confiden
 - Speech recognition quality depends on the browser (Chrome is best). Hindi in Devanagari works through the `hi-IN` toggle.
 - Report time depends on the model: usually a few seconds, sometimes longer.
 - Meera Kapoor and Northstar Ventures are fictional. The AI gives practice feedback, not investment advice.
+
+## Automated regression tests
+
+Replit uses the configured system Chromium (with its Nix libraries). On other hosts without `chromium` on PATH, install the Playwright browser once after installing npm dependencies:
+
+```sh
+npm run test:install
+```
+
+Then run all checks:
+
+```sh
+npm test
+```
+
+- `npm run test:api` runs API checks only (no browser installation required).
+- `npm run test:browser` runs the Chromium typed-pitch journey.
+- The suite starts its own offline server on port **5011**, never reuses a running server, and leaves the live preview and Groq configuration untouched. Keep port 5011 free.
+- Tests copy application sources to a temporary directory, so test counters do not affect `data/stats.json`. The copy is removed when the test server stops.
+- The child server inherits no API keys or provider settings, and outbound provider `fetch` calls are blocked. Browser tests block external requests and disable speech APIs; they exercise real local API responses, not mocked reports.
+- Coverage includes all four startup stages, offline response labels, two-user-turn verdict validation, invalid/missing stages, empty coach input, the 20-word pitch boundary, stage selection, typed submission, and report persistence after reload.
+- Failure screenshots and traces are saved under `generated-artifacts/test-results/` (excluded from Git and publishing). On other Linux hosts, Chromium may require system libraries; use Playwright's documented browser prerequisites for that host.
