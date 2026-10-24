@@ -2,7 +2,7 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
   let alive = true, revision = 0, accountRevision = 0, input = "spoken";
   onLeave(() => { alive = false; revision++; });
   root.innerHTML = `<div class="head"><h1 class="community-title">Practice leaderboard</h1>
-    <p class="muted">Celebrate progress, not perfection. Each person’s best published, AI-reviewed pitch appears once per stage and input style.</p></div>
+    <p class="muted">Compare practice scores, not the value of your startup. Each person's best published, AI-reviewed pitch appears once per stage and input style. Sharing is optional.</p></div>
     <div class="leader-filters card">
       <label>Startup stage <select class="field" id="leaderStage">${stages.map(stage => `<option value="${stage.id}">${esc(stage.name)}</option>`).join("")}</select></label>
       <div class="seg" role="group" aria-label="Practice input style">
@@ -10,7 +10,7 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
         <button type="button" data-input="typed" aria-pressed="false">Typed pitches</button>
       </div>
     </div>
-    <p class="small muted" style="margin:16px 0">Scores are out of 100. Ties share a rank. Offline feedback and sample demo pitches are not ranked.</p>
+    <p class="small muted" style="margin:16px 0">Scores are out of 100 and reflect an AI review of one explanation—not business potential. Ties share a rank. Offline feedback and sample demo pitches are not ranked.</p>
     <div class="card" id="rankings" aria-live="polite"></div>
     <section class="card sec" id="myScores"><h2>Your verified scores</h2><p class="muted">Checking your account…</p></section>`;
   const load = async () => {

@@ -43,6 +43,19 @@ for (const stage of STAGES) {
     expect(r.overall).toBeGreaterThanOrEqual(0);
     expect(r.overall).toBeLessThanOrEqual(100);
     expect(r.rewrite.length).toBeGreaterThan(0);
+    expect(r.practiceLimitSec).toBe(300);
+    for (const point of r.checklist) {
+      if (point.status === "covered") {
+        expect(point.guidance).toBeNull();
+      } else {
+        expect(point.guidance.source).toBe("rubric");
+        expect(point.guidance.gap.length).toBeGreaterThan(0);
+        expect(point.guidance.target.length).toBeGreaterThan(0);
+        expect(point.guidance.why.length).toBeGreaterThan(0);
+        expect(point.guidance.steps.length).toBeGreaterThanOrEqual(2);
+        expect(point.guidance.template).toContain("[");
+      }
+    }
     for (const key of ["structure", "clarity", "substance", "delivery"]) {
       expect(r.scores[key].score).toBeGreaterThanOrEqual(0);
       expect(r.scores[key].score).toBeLessThanOrEqual(10);

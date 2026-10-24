@@ -4,6 +4,9 @@ import { STAGES, stageById, PRO_TIPS, FILLERS, HEDGES, wordCount, DEMO_PITCH } f
 import { icon } from "./icons.js";
 import { renderHome } from "./home.js";
 import { renderLeaderboard, mountPublishPanel } from "./leaderboard.js";
+import { PITCH_SECONDS, FINAL_COUNTDOWN_SECONDS } from "./practice-config.js";
+import { addReportGuidance } from "./pitch-guidance.js";
+import { improvementPlanHTML } from "./report-plan.js";
 
 // ---------- utilities ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -14,9 +17,8 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const fmt = (sec) => `${Math.floor(Math.max(0, sec) / 60)}:${String(Math.max(0, Math.round(sec)) % 60).padStart(2, "0")}`;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const IS_ANDROID = /Android/i.test(navigator.userAgent);
-const PITCH_SECONDS = 120;
-const COACH_OPENER = "Hey! I'm your pitch coach. Tell me about your startup like you'd tell a friend: what problem are you solving, and for whom? I'll help you sharpen it as we go.";
-const MEERA_INTRO = "Hi, I'm Meera. You've got two minutes. Tell me why this is worth my time.";
+const COACH_OPENER = "Let's work on your idea together. What are you building, who is it for, and what problem does it solve? It's okay if you're still figuring parts out. Start with what you know.";
+const MEERA_INTRO = "Hi, I'm Meera, your AI practice partner. Tell me what you're building, who it's for, and why it matters. Take your time. You have up to five minutes.";
 const STORE = "sayso.v1";
 
 let SID = "anon";
@@ -46,7 +48,7 @@ async function api(path, body) {
 async function callWithRetry(path, body) {
   try { return await api(path, body); } catch (e) {
     if (e.status && e.status < 500) throw e;
-    toast("Our investor stepped out for a second. Retrying…");
+    toast("We couldn't connect to feedback. Trying once more…");
     await sleep(1200);
     return await api(path, body);
   }
@@ -193,7 +195,7 @@ class Mic {
 }
 
 // ---------- router, stepper, overlay ----------
-const STEPS = [["Use case", "/"], ["Stage", "/stage"], ["Mode", "/mode"], ["Pitch", null], ["Result", null]];
+const STEPS = [["Practice", "/"], ["Your stage", "/stage"], ["Practice style", "/mode"], ["Rehearse", null], ["Feedback", null]];
 const STEP_OF = { "/": 0, "/stage": 1, "/mode": 2, "/coach": 3, "/briefing": 3, "/showtime": 3, "/report": 4, "/stats": 0 };
 let cleanups = [];
 const onLeave = (fn) => cleanups.push(fn);
@@ -269,15 +271,15 @@ function home(root) {
 function stageView(root) {
   let picked = S.stage;
   root.innerHTML = `
-  <div class="head center"><h2>Where is your startup today?</h2>
-    <p>Investors expect different things at every stage. We'll judge your pitch against the right bar.</p></div>
+  <div class="head center"><h2>Where are you with your idea?</h2>
+    <p>Choose the closest match. Your feedback will reflect your current stage—not what a more mature company should have.</p></div>
   <div class="grid g2" role="radiogroup" aria-label="Startup stage">
     ${STAGES.map(s => `
     <div class="card hover stage-card ${picked === s.id ? "active" : ""}" role="radio" tabindex="0" aria-checked="${picked === s.id}" data-stage="${s.id}">
       <div class="row"><span class="radio"></span><h3>${esc(s.name)}</h3><span class="spacer"></span>
         ${tip(`What does a great ${s.name} pitch cover?`, `<ol>${s.items.map(i => `<li>${esc(i.title)}${i.must ? ' <span class="must">★</span>' : ""}</li>`).join("")}</ol>`)}</div>
       <p>${esc(s.oneLiner)}</p>
-      <p class="want"><b>Investors want to see:</b> ${esc(s.wants)}</p>
+      <p class="want"><b>Focus on:</b> ${esc(s.wants)}</p>
     </div>`).join("")}
   </div>
   <div class="actions"><button class="btn primary lg" id="cont" ${picked ? "" : "disabled"}>Continue ${icon("arrowRight", 16)}</button></div>`;
@@ -298,25 +300,25 @@ function modeView(root) {
   const stage = stageById(S.stage); if (!stage) return go("/stage");
   const li = (t) => `<li>${icon("check", 16)} ${esc(t)}</li>`;
   root.innerHTML = `
-  <div class="head center"><h2>How do you want to practice?</h2>
+  <div class="head center"><h2>What would help you most today?</h2>
     <p>Your stage: <b style="color:var(--text)">${esc(stage.name)}</b> · <a href="#/stage" class="linkbtn">Change</a></p></div>
   <div class="grid g2">
     <div class="card hover mode-card">
       <div class="emoji" aria-hidden="true">🧑‍🏫</div>
       <div><div class="small muted" style="font-weight:600">Coach</div><h3 style="font-size:22px">Rehearse with a coach</h3></div>
-      <p class="muted">Talk through your pitch out loud. Your coach jumps in with quick, practical feedback: what's working, what's missing, and how to say it better. When you're ready, ask for an investor's verdict.</p>
-      <ul>${li("Real-time voice feedback")}${li("Live checklist of what you've covered")}${li("No timer, no pressure")}</ul>
+      <p class="muted">Still shaping the idea? Talk or type it through with your AI coach. Work on one point at a time, ask questions, and make your explanation clearer.</p>
+      <ul>${li("Feedback after each turn")}${li("A checklist suited to your stage")}${li("No time limit; stop and resume when you need")}</ul>
       <button class="btn primary lg" id="goCoach">Start coaching</button>
     </div>
     <div class="card hover mode-card">
       <div class="emoji" aria-hidden="true">🎤</div>
-      <div><div class="small muted" style="font-weight:600">Showtime</div><h3 style="font-size:22px">Pitch to an investor</h3></div>
-      <p class="muted">You get 2 minutes and one shot. Pitch end to end, without interruptions. Then get a detailed report on where you stand.</p>
-      <ul>${li("2-minute timed pitch")}${li("Investor verdict: would they take the meeting?")}${li("Scores, fixes, and a rewritten pitch")}</ul>
+      <div><div class="small muted" style="font-weight:600">Showtime</div><h3 style="font-size:22px">Practise your full pitch</h3></div>
+      <p class="muted">Ready to explain it from start to finish? Rehearse without interruptions, then see what was clear, what was missing, and how to improve it.</p>
+      <ul>${li("Up to five minutes, at your own pace")}${li("A quiet reminder in the final 45 seconds")}${li("Specific next steps for every missing or unclear point")}</ul>
       <button class="btn primary lg" id="goShow">Enter Showtime</button>
     </div>
   </div>
-  <p class="helper">New to pitching? Start with Coach. Ready for the real thing? Go to Showtime.</p>`;
+  <p class="helper">Not sure where to start? Choose Coach to shape your story. Use Showtime whenever you want to practise the whole explanation.</p>`;
   $("#goCoach", root).addEventListener("click", () => go("/coach"));
   $("#goShow", root).addEventListener("click", () => go("/briefing"));
 }
@@ -355,10 +357,10 @@ function coachView(root) {
     <section class="card convo" aria-label="Conversation with your coach">
       <div class="convo-head">
         <div class="avatar coach" id="coachAv">AC</div>
-        <div><div style="font-weight:600">Your Coach</div><span class="status" id="status">Ready</span></div>
+        <div><div style="font-weight:600">Your AI pitch coach</div><span class="status" id="status">Ready</span></div>
         <span class="spacer"></span>
         <span class="progress-chip" id="prog"></span>
-        <button class="btn primary sm" id="verdictBtn" disabled title="Available after 2 turns">Get investor verdict</button>
+        <button class="btn primary sm" id="verdictBtn" disabled title="Share at least two messages to get a useful readiness check">Check pitch readiness</button>
       </div>
       ${noVoiceBanner()}
       <div class="msgs" id="msgs" aria-live="polite"></div>
@@ -376,7 +378,8 @@ function coachView(root) {
       </div>
     </section>
     <aside class="card guide" aria-label="Checklist">
-      <h3>What a great ${esc(stage.name)} pitch covers</h3>
+      <h3>Your ${esc(stage.name)} pitch checklist</h3>
+      <p class="small muted" style="margin-top:8px">Use this as a guide, not a script. Start with what you know and be clear about what you're still testing.</p>
       <div id="ckWrap">${checklistHtml(stage, C.covered, C.nextFocus)}</div>
       <div class="protips"><b>Pro tips</b>${esc(PRO_TIPS)}</div>
     </aside>
@@ -476,7 +479,7 @@ function coachView(root) {
     const history = C.history.filter(m => !m.failed).map(({ role, text }) => ({ role, text }));
     const m = openModal(`
       <div class="row" style="gap:14px"><div class="avatar meera lg thinking" id="vAv">MK</div>
-        <div><h2>Investor's quick take</h2><div class="row small muted" style="gap:8px;margin-top:2px">Meera Kapoor <span class="ai-label">AI investor</span></div></div>
+        <div><h2>Your pitch readiness check</h2><div class="row small muted" style="gap:8px;margin-top:2px">Meera Kapoor <span class="ai-label">AI practice investor</span></div></div>
         <span class="spacer"></span><button class="iconbtn" data-close aria-label="Close">${icon("x", 18)}</button></div>
       <div id="vBody"><div class="shimmer" style="width:100%;height:140px;margin-top:20px"></div></div>`, () => tts.stop());
     $("[data-close]", m.el).addEventListener("click", m.close);
@@ -492,7 +495,7 @@ function coachView(root) {
           ${v.clear.length ? `<div class="msec"><h4>✅ What's clear</h4><ul class="mlist">${v.clear.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
           ${v.missing.length ? `<div class="msec"><h4>❌ What's missing</h4><ul class="mlist">${v.missing.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
           ${v.fixFirst ? `<div class="msec"><h4>🎯 Fix this first</h4><p style="margin-top:6px">${esc(v.fixFirst)}</p></div>` : ""}
-          ${v.offline ? `<p class="flag" style="margin-top:14px">Offline mode: keyword-based read. Add an AI key for a real verdict.</p>` : ""}
+          ${v.offline ? `<p class="flag" style="margin-top:14px">Offline mode: this is a keyword-based review, not an AI assessment.</p>` : ""}
           <div class="actions"><button class="btn" data-keep>Keep coaching</button><button class="btn primary" data-show>Go to Showtime ${icon("arrowRight", 16)}</button></div>`;
         $("[data-keep]", body).addEventListener("click", m.close);
         $("[data-show]", body).addEventListener("click", () => { m.close(); go("/briefing"); });
@@ -577,20 +580,20 @@ function briefingView(root) {
   const stage = stageById(S.stage); if (!stage) return go("/stage");
   root.innerHTML = `
   <div class="head"><h2>Showtime: ${esc(stage.name)} pitch</h2>
-    <p>You'll pitch to Meera, a partner at a venture fund. Two minutes, no interruptions. Then you'll get her verdict and a full report.</p></div>
+    <p>Explain your idea from start to finish to Meera, your AI practice investor. You have up to five minutes, without interruptions. Afterwards, get a clear plan for improving your next pitch.</p></div>
   <div class="grid g2">
-    <div class="card"><div class="sec-title"><h3>What Meera is listening for</h3></div>
+    <div class="card"><div class="sec-title"><h3>A guide for your explanation</h3></div>
       ${checklistHtml(stage, [], null)}
-      <p class="small muted" style="margin-top:10px"><span class="must">★</span> must-have at the ${esc(stage.name)} stage</p></div>
+      <p class="small muted" style="margin-top:10px"><span class="must">★</span> Key points for the ${esc(stage.name)} stage. You don't need a perfect script.</p></div>
     <div class="card" style="display:flex;flex-direction:column;gap:18px">
-      <div class="sec-title" style="margin:0"><h3>Rules of the room</h3></div>
+      <div class="sec-title" style="margin:0"><h3>Before you start</h3></div>
       <ul class="brief-rules">
-        <li><span>⏱</span><span>2 minutes. The timer starts when you hit Start.</span></li>
-        <li><span>🗣</span><span>Speak naturally, in English, Hindi, or Hinglish. Grammar doesn't count. Clarity does.</span></li>
-        <li><span>🛑</span><span>Finished early? Hit 'End pitch'.</span></li>
+        <li>${icon("clock", 18)}<span>Take up to five minutes. The countdown stays out of sight until the final 45 seconds.</span></li>
+        <li>${icon("messageCircle", 18)}<span>Speak or type in English, Hindi, or Hinglish. Focus on your idea, not perfect English.</span></li>
+        <li>${icon("square", 18)}<span>Need a break? Stop saves your place. Finished? Choose End pitch to get feedback. At five minutes, your pitch submits automatically.</span></li>
       </ul>
       <div class="row" style="gap:14px;margin-top:auto"><div class="avatar meera lg">MK</div>
-        <div><div class="meera-name">Meera Kapoor <span class="ai-label">AI investor</span></div><div class="small muted">Partner, Northstar Ventures · fictional</div></div></div>
+        <div><div class="meera-name">Meera Kapoor <span class="ai-label">AI practice investor</span></div><div class="small muted">A fictional practice partner—not a real funding decision.</div></div></div>
       ${S.demo ? `<span class="pill accent" style="align-self:flex-start">Demo: sample Hinglish Seed pitch will be pre-filled</span>` : ""}
       <button class="btn primary lg" id="ready">I'm ready, start</button>
     </div>
@@ -626,11 +629,12 @@ function showtimeView(root) {
   <div class="room show-room">
     <section class="stage-show">
       <div class="row"><span class="pill accent">🎤 Showtime · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
-      <div class="timer" id="timer" role="timer" aria-live="off">${fmt(Math.ceil(PITCH_SECONDS - elapsedMs / 1000))}</div>
+      <div class="pitch-time" id="timer" role="timer" aria-label="Time remaining" aria-live="off" ${PITCH_SECONDS - elapsedMs / 1000 > FINAL_COUNTDOWN_SECONDS ? "hidden" : ""}>${fmt(Math.ceil(PITCH_SECONDS - elapsedMs / 1000))}</div>
+      <p class="small muted" id="timeNotice" role="status"></p>
       <div class="meera-zone">
         <div class="avatar meera xl" id="meera">MK</div>
         <div class="meera-name">Meera Kapoor <span class="ai-label">AI investor</span></div>
-        <div class="small muted" id="meeraState">Partner, Northstar Ventures</div>
+        <div class="small muted" id="meeraState">Your AI practice partner</div>
         <div class="reactions" id="reactions" aria-hidden="true"></div>
       </div>
       <div class="caption" id="caption"></div>
@@ -650,11 +654,11 @@ function showtimeView(root) {
       </div>
       <details class="card" id="typed" ${!SR || S.demo ? "open" : ""}>
         <summary>${icon("keyboard", 18)} Type instead ${icon("chevronDown", 18)}</summary>
-        <p class="small muted" style="margin:10px 0">The timer still runs while you type.</p>
+        <p class="small muted" style="margin:10px 0">Prefer typing? You have the same five-minute practice window. Stop pauses your session.</p>
         ${S.demo ? `<span class="pill accent" style="margin-bottom:10px">Demo transcript loaded (sample)</span>` : ""}
-        <textarea class="field" id="typedTx" placeholder="Type your pitch here…" maxlength="5000" ${restored ? "disabled" : ""}>${esc(sh.typedDraft || (S.demo ? DEMO_PITCH : ""))}</textarea>
+        <textarea class="field" id="typedTx" placeholder="Type your pitch here…" maxlength="10000" ${restored ? "disabled" : ""}>${esc(sh.typedDraft || (S.demo ? DEMO_PITCH : ""))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn primary" id="submitTyped" disabled>${icon("send", 15)} Submit</button>
-          <span class="small muted" id="typedHint">Starts with the timer.</span></div>
+          <span class="small muted" id="typedHint">Write your draft here. Submit when you're ready.</span></div>
       </details>
     </section>
   </div>`;
@@ -704,7 +708,11 @@ function showtimeView(root) {
   function tick() {
     const left = PITCH_SECONDS - (elapsedMs + Date.now() - t0) / 1000;
     timerEl.textContent = fmt(Math.ceil(left));
-    timerEl.className = `timer ${left <= 10 ? "red" : left <= 30 ? "amber" : ""}`;
+    const reveal = left <= FINAL_COUNTDOWN_SECONDS;
+    timerEl.hidden = !reveal;
+    timerEl.className = `pitch-time ${left <= 10 ? "ending" : ""}`;
+    const notice = $("#timeNotice", root);
+    if (reveal && !notice.textContent && left > 0) notice.textContent = `${Math.ceil(left)} seconds left. Bring your explanation to a close when you're ready.`;
     if (left <= 0) end("timeout");
     else if (Date.now() - checkpoint > 1000) { checkpoint = Date.now(); persistPitch(); }
   }
@@ -765,7 +773,7 @@ function showtimeView(root) {
     let longPauses = 0, longest = 0;
     for (let i = 1; i < segs.length; i++) { const gap = (segs[i].start - segs[i - 1].end) / 1000; if (gap > 2.5) longPauses++; longest = Math.max(longest, gap); }
     const metrics = { durationSec, longPauses, longestPauseSec: Math.round(longest * 10) / 10, typed: !!typedUsed && !spoken && !isDemo };
-    if (reason === "timeout") toast("Time! Meera is writing your report.");
+    if (reason === "timeout") toast("Your five-minute practice is complete. Preparing your feedback.");
     if (wordCount(transcript) < 20) { S.show.phase = "short"; save(); return tooShortView(root, stage); }
     S.show.phase = "judging"; S.show.pending = { transcript, metrics, demo: isDemo }; save();
     judgingView(root, stage, S.show.pending);
@@ -804,7 +812,7 @@ function showtimeView(root) {
     // Arrived by refresh or link: need a tap first (browsers require a gesture for mic + speech).
     $("#overlay").innerHTML = `<div class="modal-bg"><div class="modal center" role="dialog" aria-modal="true">
       <div class="avatar meera lg" style="margin:0 auto 14px">MK</div><h2>Ready when you are</h2>
-      <p class="muted" style="margin-top:8px">Two minutes, one shot. The timer starts after Meera's intro.</p>
+      <p class="muted" style="margin-top:8px">Take up to five minutes after Meera's introduction. There’s no visible countdown until the last 45 seconds. You can stop and resume whenever you need.</p>
       <div class="actions" style="justify-content:center"><a class="btn" href="#/briefing">Back to briefing</a><button class="btn primary" id="go">Start ${icon("arrowRight", 16)}</button></div></div></div>`;
     $("#go").addEventListener("click", () => { closeOverlay(); begin(); });
   }
@@ -813,7 +821,7 @@ function showtimeView(root) {
 function tooShortView(root, stage) {
   root.innerHTML = `<div class="card center" style="max-width:560px;margin:40px auto;padding:36px">
     <div class="avatar meera lg" style="margin:0 auto 16px">MK</div>
-    <h2>Meera didn't hear enough to judge.</h2><p class="muted" style="margin-top:10px">Give it another go. Aim for at least a few sentences: the problem, who has it, and what you're building.</p>
+    <h2>Let's hear a little more of your idea.</h2><p class="muted" style="margin-top:10px">We need at least 20 words to give useful feedback. Start with who you're helping, their problem, and what you're building. You can speak or type.</p>
     <div class="actions" style="justify-content:center"><button class="btn" id="coach">Practice with Coach</button><button class="btn primary" id="retry">${icon("retry", 16)} Retry</button></div></div>`;
   $("#retry", root).addEventListener("click", () => { S.show = newShow(stage.id, "countdown"); save(); track("retry"); router(); });
   $("#coach", root).addEventListener("click", () => go("/coach"));
@@ -821,11 +829,11 @@ function tooShortView(root, stage) {
 
 function judgingView(root, stage, pending) {
   let alive = true; onLeave(() => { alive = false; });
-  const steps = ["Transcribing your pitch…", "Checking structure…", "Measuring delivery…",
-    ...(HEALTH_V.evaluator ? ["Cross-checking with the Pitch Evaluator…"] : []), "Writing your report…"];
+  const steps = ["Reviewing your explanation…", "Checking the points for your stage…", "Identifying what needs more detail…",
+    ...(HEALTH_V.evaluator ? ["Cross-checking the evidence…"] : []), "Preparing your improvement plan…"];
   root.innerHTML = `<div class="center" style="padding:30px 0">
     <div class="avatar meera xl thinking" style="margin:0 auto 18px">MK</div>
-    <h2>Meera is weighing your pitch</h2><p class="muted" style="margin-top:6px">Your report will be ready in a few seconds.</p>
+    <h2>Turning your pitch into a practical next-step plan</h2><p class="muted" style="margin-top:6px">We're reviewing what you said and how to strengthen it. A detailed review can take up to a minute. Your pitch is saved in this tab.</p>
     <ul class="loading-steps" id="steps">${steps.map(s => `<li><span class="box"></span>${s}</li>`).join("")}</ul>
     <div id="jErr"></div></div>`;
   const lis = $$("#steps li", root);
@@ -872,15 +880,17 @@ function reportView(root) {
   const R = S.report;
   if (!R) return go(S.stage ? "/briefing" : "/");
   const stage = stageById(R.stage);
+  const checklist = addReportGuidance(stage, R.checklist || []);
   const M = R.metrics || {};
-  const V = { take_meeting: ["ok", "🟢 I'd take the meeting", "var(--success)"], interested: ["warn", "🟡 Interested, with questions", "var(--warning)"], not_yet: ["bad", "🔴 Not yet", "var(--danger)"] }[R.verdict] || ["warn", "🟡 Interested, with questions", "var(--warning)"];
+  const V = { take_meeting: ["ok", "A clear case for a follow-up", "var(--success)"], interested: ["warn", "Promising, with points to clarify", "var(--warning)"], not_yet: ["bad", "Let's strengthen the explanation", "var(--danger)"] }[R.verdict] || ["warn", "Some points need clarification", "var(--warning)"];
   const C = 2 * Math.PI * 56;
   const scoreCard = (k, label) => { const s = R.scores?.[k] || { score: 0, reason: "" }; return `<div class="card score-card"><h4>${label}</h4><div class="n">${s.score}<small> / 10</small></div><div class="bar"><i data-w="${s.score * 10}" style="background:${s.score >= 7 ? "var(--success)" : s.score >= 5 ? "var(--warning)" : "var(--danger)"}"></i></div><p>${esc(s.reason)}</p>${s.agent != null ? `<p class="small muted" style="margin-top:6px">Average of Meera and the Pitch Evaluator (${s.agent}/10)</p>` : ""}</div>`; };
-  const stIcon = { covered: ["✅", "Covered"], weak: ["⚠️", "Weak"], missing: ["❌", "Missing"] };
+  const stIcon = { covered: [icon("check", 17), "Covered"], weak: [icon("info", 17), "Needs detail"], missing: [icon("alert", 17), "Not explained"] };
   const paceCls = M.paceLabel === "Great" ? "ok" : "warn";
   root.innerHTML = `
   <div class="report">
-    ${R.offline ? `<div class="flag">Offline mode: this report uses simple keyword rules because no AI key is configured on the server. Add <b>LLM_API_KEY</b> for Meera's real judgement.</div>` : ""}
+    <div class="head"><h2>Your pitch feedback</h2><p>A practical review for your ${esc(stage?.name || "current")} stage. Use it to improve your explanation, not as a prediction of funding or business success.</p></div>
+    ${R.offline ? `<div class="flag">Offline mode: this report uses simple keyword rules, not an AI assessment. It can miss context. The improvement plans below are based on your stage checklist.</div>` : ""}
     ${R.demo ? `<div class="flag">Sample demo transcript (fictional company). Pace and time used are estimated at 140 wpm.</div>` : ""}
 
     <section class="card verdict-hero sec" aria-label="Verdict">
@@ -888,8 +898,8 @@ function reportView(root) {
       <div class="vh-body">
         <div class="row"><span class="pill big ${V[0]}">${V[1]}</span><span class="small muted">Meera Kapoor · <span class="ai-label">AI investor</span> · ${esc(stage?.name || "")} stage</span></div>
         <p class="quote">"${esc(R.investorReaction)}"</p>
-        <p class="oneline">Your pitch in one line, as Meera heard it: <b>${esc(R.pitchInOneLine)}</b></p>
-        ${R.missingMust ? `<p class="small" style="color:var(--warning);margin-top:8px">−10: a ★ must-have is missing.</p>` : ""}
+        <p class="oneline">Your idea, as understood from this pitch: <b>${esc(R.pitchInOneLine)}</b></p>
+        ${R.missingMust ? `<p class="small" style="color:var(--warning);margin-top:8px">A key point for your stage wasn't explained clearly. The score includes a 10-point adjustment; use the plan below to work on it.</p>` : ""}
       </div>
       <div class="ring" aria-label="Overall score ${R.overall} out of 100">
         <svg width="132" height="132" viewBox="0 0 132 132"><circle cx="66" cy="66" r="56" fill="none" stroke="var(--border)" stroke-width="10"/>
@@ -899,41 +909,43 @@ function reportView(root) {
     </section>
 
     <section class="grid g4 sec" aria-label="Scores">
-      ${scoreCard("structure", "Structure")}${scoreCard("clarity", "Clarity")}${scoreCard("substance", "Substance")}${scoreCard("delivery", "Delivery & Confidence")}
+      ${scoreCard("structure", "Story structure")}${scoreCard("clarity", "Clarity")}${scoreCard("substance", "Evidence & detail")}${scoreCard("delivery", "Communication")}
     </section>
 
     ${agentCard(R)}
 
-    <section class="card sec"><div class="sec-title"><h3>${esc(stage?.name || "")} checklist</h3><span class="spacer"></span><span class="small muted">${R.checklist.filter(c => c.status === "covered").length}/${R.checklist.length} covered</span></div>
-      <table class="ct"><thead><tr><th></th><th>Element</th><th>Evidence</th></tr></thead><tbody>
+    <section class="card sec"><div class="sec-title"><h3>${esc(stage?.name || "")} pitch checklist</h3><span class="spacer"></span><span class="small muted">${checklist.filter(c => c.status === "covered").length}/${checklist.length} clearly explained</span></div>
+      <p class="small muted" style="margin-bottom:14px">Covered = explained clearly. Needs detail = mentioned, but not specific enough. Not explained = we couldn't find a clear answer. ★ marks a key point for this stage.</p>
+      <table class="ct"><thead><tr><th>Status</th><th>Pitch point</th><th>What your pitch said</th></tr></thead><tbody>
       ${R.checklist.map(c => `<tr><td class="st" title="${stIcon[c.status][1]}">${stIcon[c.status][0]}<span class="sr">${stIcon[c.status][1]}</span></td>
         <td class="el">${esc(c.title)}${c.must ? ' <span class="must">★</span>' : ""}</td>
         <td><div class="ev ${c.evidence === "Not mentioned" ? "none" : ""}">${c.evidence === "Not mentioned" ? "Not mentioned" : `"${esc(c.evidence)}"`}</div>${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}</td></tr>`).join("")}
       </tbody></table></section>
+    ${improvementPlanHTML(checklist, esc)}
 
-    <section class="sec"><div class="sec-title"><h3>Delivery stats</h3></div>
+    <section class="sec"><div class="sec-title"><h3>Your speaking and wording patterns</h3></div><p class="small muted" style="margin-bottom:14px">These are prompts for reflection, not rules for sounding a certain way. Honest uncertainty is useful when you’re describing an early idea.</p>
       <div class="grid g4 tiles">
         <div class="card tile"><div class="k">Pace</div>${M.typed ? `<div class="v">—</div><div class="d">Typed pitch, so pace isn't measured.</div>` : `<div class="v">${M.wpm} wpm</div><span class="pill ${paceCls}">${esc(M.paceLabel)}</span><div class="d" style="margin-top:6px">110–165 wpm is ideal.</div>`}</div>
-        <div class="card tile"><div class="k">Filler words</div><div class="v">${M.fillers?.total ?? 0}</div><div class="d">${top(M.fillers?.byWord, 3).map(([w, n]) => `"${esc(w)}" ×${n}`).join(" · ") || "Clean. No fillers."}</div></div>
-        <div class="card tile"><div class="k">Hedging</div><div class="v">${M.hedges?.total ?? 0}</div><div class="d">${top(M.hedges?.byPhrase, 3).map(([w, n]) => `"${esc(w)}"${n > 1 ? ` ×${n}` : ""}`).join(" · ") || "You owned your claims."}</div></div>
-        <div class="card tile"><div class="k">Longest pause · Time used</div><div class="v">${M.typed ? "—" : `${M.longestPauseSec ?? 0}s`}</div><div class="d">${M.typed ? "" : `${M.longPauses ?? 0} pause${M.longPauses === 1 ? "" : "s"} over 2.5s · `}${fmt(M.durationSec)} / 2:00</div></div>
+        <div class="card tile"><div class="k">Filler phrases detected</div><div class="v">${M.fillers?.total ?? 0}</div><div class="d">${top(M.fillers?.byWord, 3).map(([w, n]) => `"${esc(w)}" ×${n}`).join(" · ") || "No listed filler phrases detected."}</div></div>
+        <div class="card tile"><div class="k">Uncertainty phrases detected</div><div class="v">${M.hedges?.total ?? 0}</div><div class="d">${top(M.hedges?.byPhrase, 3).map(([w, n]) => `"${esc(w)}"${n > 1 ? ` ×${n}` : ""}`).join(" · ") || "No listed uncertainty phrases detected."}</div></div>
+        <div class="card tile"><div class="k">Longest pause · Practice time</div><div class="v">${M.typed ? "—" : `${M.longestPauseSec ?? 0}s`}</div><div class="d">${M.typed ? "" : `${M.longPauses ?? 0} pause${M.longPauses === 1 ? "" : "s"} over 2.5s · `}${fmt(M.durationSec)} / ${fmt(R.practiceLimitSec || 120)}</div></div>
       </div></section>
 
     <section class="grid g2 sec">
-      <div class="card"><div class="sec-title"><h3>💪 What worked</h3></div>
-        ${R.strengths.map(s => `<div class="item"><h4>${esc(s.title)}</h4>${s.quote ? `<div class="qblock">"${esc(s.quote)}"</div>` : ""}<p class="why">${esc(s.why)}</p></div>`).join("") || `<p class="muted">Nothing stood out yet. That's what the fixes are for.</p>`}</div>
-      <div class="card"><div class="sec-title"><h3>🎯 Fix next</h3></div>
+      <div class="card"><div class="sec-title"><h3>What to keep</h3></div>
+        ${R.strengths.map(s => `<div class="item"><h4>${esc(s.title)}</h4>${s.quote ? `<div class="qblock">"${esc(s.quote)}"</div>` : ""}<p class="why">${esc(s.why)}</p></div>`).join("") || `<p class="muted">This review didn't identify a specific strength to highlight. Start with one improvement above and build from there.</p>`}</div>
+      <div class="card"><div class="sec-title"><h3>Refine how you explain it</h3></div>
         ${R.fixes.map((f, i) => `<div class="item"><h4>${i + 1}. ${esc(f.title)}</h4>${f.youSaid ? `<div class="qblock said">You said: "${esc(f.youSaid)}"</div>` : ""}${f.try ? `<div class="qblock try">Try: "${esc(f.try)}"</div>` : ""}<p class="why">${esc(f.why)}</p></div>`).join("")}</div>
     </section>
 
-    <section class="card sec"><div class="sec-title"><span class="avatar meera" style="width:32px;height:32px;font-size:11px">MK</span><h3>Meera's toughest question</h3></div>
+    <section class="card sec"><div class="sec-title"><span class="avatar meera" style="width:32px;height:32px;font-size:11px">MK</span><h3>A question to prepare for</h3></div>
       <p style="font-size:18px;font-weight:600">"${esc(R.toughestQuestion?.question)}"</p>
       <p class="muted" style="margin-top:8px"><b style="color:var(--text)">How to answer:</b> ${esc(R.toughestQuestion?.howToAnswer)}</p></section>
 
-    <section class="card sec"><div class="sec-title"><h3>Say it like this</h3><span class="spacer"></span>
+    <section class="card sec"><div class="sec-title"><h3>A draft for your next practice</h3><span class="spacer"></span>
       <button class="btn sm" id="copyRw">${icon("copy", 14)} Copy</button><button class="btn sm" id="listenRw">${icon("volume", 14)} Listen</button></div>
       <p class="rewrite">${esc(R.rewrite)}</p>
-      <p class="small muted" style="margin-top:10px">Built only from what you said. Fill the [placeholders] with your real facts.</p></section>
+      <p class="small muted" style="margin-top:10px">A suggested structure based on your pitch, not a script to memorise. Check every claim and fill the [placeholders] with your real facts.</p></section>
 
     <details class="card sec"><summary>Full transcript <span class="small muted" style="font-weight:400"><mark class="f">filler</mark> <mark class="h">hedge</mark></span>${icon("chevronDown", 18)}</summary>
       <div class="transcript">${highlight(R.transcript || "")}</div></details>
@@ -977,9 +989,9 @@ function reportView(root) {
 function agentCard(R) {
   const a = R.agent; if (!a) return "";
   const vp = { take_meeting: ["ok", "Take the meeting"], interested: ["warn", "Interested"], not_yet: ["bad", "Not yet"] }[a.verdict];
-  const head = `<div class="sec-title"><h3>🤝 Cross-checked by a second judge</h3><span class="spacer"></span><span class="pill accent">Pitch Evaluator agent</span></div>`;
+  const head = `<div class="sec-title"><h3>An additional evidence check</h3><span class="spacer"></span><span class="pill accent">AI cross-check</span></div>`;
   if (a.status !== "merged") {
-    const why = "The Pitch Evaluator wasn't available for this pitch, so the scores above are Meera's alone.";
+    const why = "The additional AI review wasn't available for this pitch. Your report uses the primary review only.";
     return `<section class="card sec">${head}<p class="muted">${why}</p></section>`;
   }
   return `<section class="card sec">${head}
@@ -989,13 +1001,13 @@ function agentCard(R) {
       <div class="card tile"><div class="k">Agreed with Meera</div><div class="v">${a.agreement != null ? `${a.agreement}%` : "—"}</div><div class="d">of checklist calls</div></div>
       <div class="card tile"><div class="k">Confidence</div><div class="v" style="text-transform:capitalize">${esc(a.confidence || "—")}</div></div>
     </div>
-    ${a.redFlags?.length ? `<div class="msec"><h4>🚩 Red flags an investor would notice</h4><ul class="mlist">${a.redFlags.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${a.redFlags?.length ? `<div class="msec"><h4>Claims or assumptions to check</h4><ul class="mlist">${a.redFlags.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     <p class="small muted" style="margin-top:12px">Your scores and checklist above merge both judges: scores are averaged, and where they disagree the checklist leans cautious.</p></section>`;
 }
 
 // ======================= hidden: live usage stats (Proof of Life) =======================
 async function statsView(root) {
-  root.innerHTML = `<div class="head"><h2>Live usage</h2><p>Anonymous counts only. No transcripts or personal data are stored.</p></div><div id="st" class="grid g4"></div>`;
+  root.innerHTML = `<div class="head"><h2>Practice activity</h2><p>This page shows anonymous activity counts—not pitches, saved reports or account details.</p></div><div id="st" class="grid g4"></div>`;
   const load = async () => {
     try {
       const s = await api("/api/stats");

@@ -10,6 +10,8 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./server/clerk-proxy.js";
 import { registerCommunity, saveVerifiedAttempt, database, userIdOf } from "./server/community.js";
+import { PITCH_SECONDS } from "./public/practice-config.js";
+import { addReportGuidance } from "./public/pitch-guidance.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -67,19 +69,20 @@ function rateLimit(req, res, next) {
 }
 
 // ---------- prompts (verbatim from the build spec, filled from rubrics.js) ----------
-const coachSystem = (stage, covered) => `You are "Coach", a warm, sharp startup pitch coach who has helped hundreds of founders raise money. You are rehearsing a ${stage.name}-stage pitch with a founder, live, by voice.
+const coachSystem = (stage, covered) => `You are "Coach", an AI practice coach for early-stage founders and builders. You are helping a founder explain their ${stage.name}-stage idea, by voice or text. Be welcoming, practical and honest. Don't claim personal achievements or real investor authority.
 
 YOUR JOB
 - Help the founder build a pitch that covers what a ${stage.name} investor needs (checklist below), delivered with clarity and conviction.
 - Coach one thing at a time. React to what they just said: name what worked in a few words, then give ONE specific improvement or ask ONE probing question.
 - When something is vague, show them how to say it better: give a short "Try saying: ..." line built from THEIR content. Never invent facts or numbers; use placeholders like [your number] if needed.
 - Steer gently toward checklist items not yet covered.
+- At Idea and Pre-seed, help them name assumptions and design small validation tests; don't demand revenue or mature growth metrics. Treat interviews and prototype learning as stage-appropriate evidence.
 
 LANGUAGE AND STYLE
 - Reply in the same language mix the founder used (English, Hindi, or Hinglish). Match their register.
 - NEVER correct grammar, accent, or vocabulary. Ignore transcription errors; infer intended meaning. Judge only substance, structure, clarity, and confidence.
 - This is spoken aloud: max 45 words, no lists, no markdown, no emojis. Sound human and encouraging, but honest.
-- Flag filler and hedging only when it hurts ("You said 'maybe' three times about your market. Own it.").
+- Mention filler or vague phrasing only when it obscures meaning. Never ask founders to present an untested assumption as a fact or remove appropriate uncertainty.
 
 ${stage.name} CHECKLIST (id: element: what good looks like)
 ${checklistText(stage)}
@@ -95,14 +98,17 @@ Conversation: ${historyText(history)}
 Return ONLY JSON:
 {"verdict":"ready|almost|needs_work","headline":"<max 25 words, spoken, direct>","clear":["..."],"missing":["..."],"fixFirst":"<one concrete action>"}`;
 
-const judgeSystem = (stage) => `You are the evaluation engine behind "Meera Kapoor", a partner at an early-stage venture fund. A founder just delivered a ${stage.name}-stage pitch (max 2 minutes, spoken, possibly in English, Hindi, or Hinglish). Produce a rigorous, specific, honest report.
+const judgeSystem = (stage) => `You are the evaluation engine behind "Meera Kapoor", a fictional AI investor helping early-stage founders and builders practise. A founder just delivered a ${stage.name}-stage pitch (up to ${PITCH_SECONDS / 60} minutes, spoken or typed, possibly in English, Hindi, or Hinglish). Produce a detailed, practical, evidence-based improvement report. This is a rehearsal, not a real funding decision.
 
 PRINCIPLES
 - Evaluate SUBSTANCE and DELIVERY, never grammar, accent, vocabulary, or code-switching. The transcript comes from speech recognition: ignore transcription errors and infer meaning.
 - Be specific: every strength and fix must quote the founder's exact words from the transcript.
-- Be calibrated: use the full 0–10 range. A vague pitch with no numbers should not score above 5 on Substance. Don't flatter.
+- Be calibrated: use the full 0–10 range. Reward evidence appropriate to the stage, not polished jargon. Interviews, observations and prototype tests can be evidence at Idea and Pre-seed; don't demand revenue or mature growth metrics from them.
 - Judge against the ${stage.name} bar, not a later stage (an Idea-stage founder isn't penalised for lacking revenue).
 - Write all user-facing text in the founder's language mix. Never invent facts: rewrites use only what they said, with [placeholders] for gaps.
+- For EVERY weak or missing checklist item, explain the precise missing information, why it matters at this stage, 2–4 concrete steps to address it, and a fill-in sentence using [placeholders] for unknown facts. Refer to what the founder actually said; don't invent an absence you cannot substantiate. If a point is missing, say it was not explained clearly in the pitch, not that the business lacks it.
+- Make steps genuinely useful: specify what to ask users, measure, calculate or clarify and how to put that into the next pitch. Avoid generic instructions such as "add more detail". Distinguish existing evidence from an experiment to run.
+- Honest assumptions and uncertainty are appropriate for early builders. Never tell the founder to invent traction, price, credentials, market figures or customer quotes.
 
 ${stage.name} CHECKLIST (id: element: what good looks like; ★ = must-have)
 ${checklistText(stage)}
@@ -124,7 +130,7 @@ Return ONLY JSON:
  "investorReaction": "<2 sentences in Meera's voice, direct, spoken aloud>",
  "pitchInOneLine": "<the idea as an investor understood it, one sentence>",
  "scores": {"structure":{"score":0-10,"reason":""},"clarity":{...},"substance":{...},"delivery":{...}},
- "checklist": [{"id":"","status":"covered|weak|missing","evidence":"<exact quote or 'Not mentioned'>","note":""}],
+ "checklist": [{"id":"","status":"covered|weak|missing","evidence":"<exact quote or 'Not mentioned'>","note":"<specific observation>","guidance":{"gap":"<exactly what wasn't clear or was not explained>","why":"<why it matters at this stage>","steps":["<specific action>","<specific action>","<how to include the result in the next pitch>"],"template":"<fill-in sentence using [placeholders], not invented business facts>"}}],
  "strengths": [{"title":"","quote":"","why":""}],
  "fixes": [{"title":"","youSaid":"","try":"","why":""}],
  "toughestQuestion": {"question":"","howToAnswer":""},
@@ -151,7 +157,7 @@ function normVerdict(out) {
 
 function computeMetrics(transcript, m = {}) {
   const words = wordCount(transcript);
-  const durationSec = clamp(Math.round(num(m.durationSec, 0)), 1, 600);
+  const durationSec = clamp(Math.round(num(m.durationSec, 0)), 1, PITCH_SECONDS);
   const fillers = countPhrases(transcript, FILLERS), hedges = countPhrases(transcript, HEDGES);
   const wpm = Math.round(words / (durationSec / 60));
   return {
@@ -173,12 +179,12 @@ function normReport(stage, out, metrics) {
     const c = given.find(x => x?.id === item.id) || {};
     const status = ["covered", "weak", "missing"].includes(c.status) ? c.status : "missing";
     return { id: item.id, title: item.title, must: item.must, status,
-      evidence: str(c.evidence, 400) || "Not mentioned", note: str(c.note, 300) };
+      evidence: str(c.evidence, 600) || "Not mentioned", note: str(c.note, 650), guidance: c.guidance };
   });
   return applyScoring(stage, {
     investorReaction: str(out?.investorReaction, 500),
     pitchInOneLine: str(out?.pitchInOneLine, 300),
-    scores, checklist,
+    scores, checklist: addReportGuidance(stage, checklist), practiceLimitSec: PITCH_SECONDS,
     strengths: arr(out?.strengths, 3).map(s => ({ title: str(s?.title, 120), quote: str(s?.quote, 400), why: str(s?.why, 300) })).filter(s => s.title || s.quote),
     fixes: arr(out?.fixes, 3).map(f => ({ title: str(f?.title, 120), youSaid: str(f?.youSaid, 400), try: str(f?.try, 400), why: str(f?.why, 300) })).filter(f => f.title || f.try),
     toughestQuestion: { question: str(out?.toughestQuestion?.question, 300), howToAnswer: str(out?.toughestQuestion?.howToAnswer, 400) },
@@ -213,9 +219,10 @@ function mergeEvaluation(stage, report, ev, run) {
     compared++; if (e.status === c.status) agree++;
     const status = NAME[Math.ceil((RANK[c.status] + RANK[e.status]) / 2)];
     const evidence = c.evidence !== "Not mentioned" ? c.evidence : (str(e.evidence, 400) || "Not mentioned");
-    return { ...c, status, evidence, agentStatus: e.status, note: e.status !== c.status && e.note ? `${c.note} Evaluator: ${str(e.note, 200)}` : c.note };
+    return { ...c, status, evidence, guidance: status === c.status ? c.guidance : undefined,
+      agentStatus: e.status, note: e.status !== c.status && e.note ? `${c.note} Additional review: ${str(e.note, 300)}` : c.note };
   });
-  const merged = applyScoring(stage, { ...report, scores, checklist });
+  const merged = applyScoring(stage, { ...report, scores, checklist: addReportGuidance(stage, checklist) });
   merged.agent = { status: "merged", verdict: str(ev.verdict, 20), overall: Number.isFinite(Number(ev.overall)) ? clamp(Math.round(Number(ev.overall)), 0, 100) : null,
     confidence: str(ev.confidence, 10), redFlags: arr(ev.redFlags, 6).map(x => str(x, 200)).filter(Boolean),
     agreement: compared ? Math.round((agree / compared) * 100) : null, pitchInOneLine: str(ev.pitchInOneLine, 300) };
@@ -310,15 +317,15 @@ app.post("/api/verdict", rateLimit, async (req, res) => {
 
 app.post("/api/judge", rateLimit, async (req, res) => {
   const stage = getStage(req, res); if (!stage) return;
-  const transcript = str(req.body?.transcript, 6000);
+  const transcript = str(req.body?.transcript, 12000);
   const metrics = computeMetrics(transcript, req.body?.metrics || {});
   if (metrics.wordCount < 20) return res.status(422).json({ error: "too_short", message: "Meera didn't hear enough to judge. Give it another go." });
   track("report", str(req.body?.sid, 40));
   const evalRun = startEvaluator(stage, transcript, metrics);
   if (!aiStatus().ready) return res.json(await withEvaluation(stage, { ...normReport(stage, offlineJudge(stage, transcript, metrics), metrics), offline: true }, evalRun));
   try {
-    const user = `<transcript>\n${transcript}\n</transcript>\n\n<metrics>\n${JSON.stringify(metrics)}\n</metrics>\n\n${metrics.typed ? "Note: this pitch was typed, not spoken. Judge delivery on conviction and hedging only, not pace or pauses.\n\n" : ""}Keep every reason, note and why to one short sentence. Return ONLY the JSON report.`;
-    const out = await callLLMJson(judgeSystem(stage), user, { maxTokens: 3000, timeoutMs: 45000 });
+    const user = `<transcript>\n${transcript}\n</transcript>\n\n<metrics>\n${JSON.stringify(metrics)}\n</metrics>\n\n${metrics.typed ? "Note: this pitch was typed, not spoken. Do not infer vocal confidence, pace, pronunciation or pauses from typed text.\n\n" : ""}Keep score reasons concise, but give a complete, specific improvement plan for EVERY weak or missing checklist point. Return ONLY the JSON report.`;
+    const out = await callLLMJson(judgeSystem(stage), user, { maxTokens: 6000, timeoutMs: 60000 });
     const report = normReport(stage, out, metrics);
     if (!report.investorReaction || !report.rewrite) throw new Error("Incomplete report");
     const evaluated = await withEvaluation(stage, report, evalRun);
@@ -329,13 +336,14 @@ app.post("/api/judge", rateLimit, async (req, res) => {
 });
 
 // ---------- In-house "Pitch Evaluator" agent: an evidence-first rubric engine that runs in parallel with Meera ----------
-const evaluatorSystem = (stage) => `You are the Pitch Evaluator. You receive the transcript of a founder's spoken startup pitch (max 2 minutes) and the stage of their company. Compare the pitch against the fixed investor rubric below and return a structured evaluation as JSON. You do not talk to the founder. Accuracy, evidence, and consistency matter more than tone.
+const evaluatorSystem = (stage) => `You are the Pitch Evaluator. You receive the transcript of a founder's startup pitch (up to ${PITCH_SECONDS / 60} minutes, spoken or typed) and the stage of their company. Compare the pitch against the fixed investor rubric below and return a structured evaluation as JSON. You do not talk to the founder. Accuracy, evidence, and consistency matter more than tone.
 
 HARD RULES
 1. Substance, not grammar. Never judge grammar, accent, spelling, vocabulary, or code-switching between English and Hindi. The transcript is machine-generated; infer what the founder meant.
 2. Evidence or it didn't happen. Mark a rubric item "covered" or "weak" only if you can quote the founder's exact words. If you can't quote it, it is "missing". Never invent quotes, facts, or numbers.
 3. Judge against the stated stage only.
-4. Be calibrated. Use the full 0-10 range. Vague claims without numbers cap Substance at 5. No ask caps Structure at 6. Do not flatter. Do not be cruel.
+   When metrics.typed is true, do not infer vocal confidence, pace, pronunciation or pauses. Review how clearly the text communicates the idea.
+4. Be calibrated. Use the full 0-10 range. At Idea and Pre-seed, qualitative user research and prototype learning can be valid evidence; don't require revenue or later-stage metrics. Only penalise an absent ask when it is in this stage's rubric. Don't confuse information not mentioned in a pitch with facts missing from the business. Be candid and constructive.
 5. Report findings only; do not rewrite or coach.
 6. Output valid JSON only. If the transcript is unintelligible, return {"error":"insufficient_input"}.
 

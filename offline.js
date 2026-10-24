@@ -89,7 +89,7 @@ export function offlineCoach(stage, history, userText, prevCovered) {
     reply += next ? ASK.hi[next.id] : "Saare points cover ho gaye. Ab investor verdict lo, ya Showtime try karo.";
   } else {
     reply = fresh.length ? `Nice, your ${fresh.map(i => i.title.toLowerCase()).join(" and ")} came through. ` : "Okay, keep going. ";
-    if (hedges >= 2) reply += `You hedged ${hedges} times there. Own it. `;
+    if (hedges >= 2) reply += "Separate what you've observed from what you're still testing. ";
     reply += next ? ASK.en[next.id] : "You've covered the essentials. Ask for the investor verdict, or try Showtime.";
   }
   return { reply, covered, nextFocus: next?.id || null };
@@ -129,7 +129,7 @@ export function offlineJudge(stage, transcript, metrics) {
   const weak = sents.filter(s => sum(countPhrases(s, HEDGES)) + sum(countPhrases(s, FILLERS)) > 0);
   const missingItems = stage.items.filter(i => checklist.find(c => c.id === i.id).status === "missing");
   return {
-    investorReaction: "I'm running in offline mode, so this is a keyword-based read, not my full judgement. Add the AI key for a real verdict.",
+    investorReaction: "This is a checklist-based review, not a full AI assessment. Use the improvement plan to work through the points that may need a clearer explanation.",
     pitchInOneLine: (find("solution") || sents[0] || transcript.slice(0, 160)),
     scores: {
       structure: { score: structure, reason: `${Math.round(coverage * 100)}% of the ${stage.name} checklist detected.` },

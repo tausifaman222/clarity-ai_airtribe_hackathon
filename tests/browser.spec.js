@@ -20,7 +20,7 @@ test("choose a stage, submit a typed pitch, and retain its report on reload", as
   await page.locator('[data-stage="seed"]').click();
   await expect(page.locator('[data-stage="seed"]')).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Choose how to practice" }).click();
-  await page.getByRole("button", { name: /2-minute investor pitch/ }).click();
+  await page.getByRole("button", { name: /Full pitch practice/ }).click();
   await page.getByRole("button", { name: "Confirm practice setup" }).click();
   await expect(page.locator(".cr-ready")).toContainText("your Seed idea, in English");
   await page.getByRole("button", { name: "Enter Showtime" }).click();
@@ -38,11 +38,21 @@ test("choose a stage, submit a typed pitch, and retain its report on reload", as
   expect(report.offline).toBe(true);
   await expect(page).toHaveURL(/#\/report$/);
   await expect(page.getByText(/Offline mode: this report uses simple keyword rules/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Seed checklist" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Seed pitch checklist" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What to improve, and how" })).toBeVisible();
+  const gaps = report.checklist.filter(point => point.status !== "covered");
+  await expect(page.locator("[data-gap]")).toHaveCount(gaps.length);
+  for (const point of gaps) {
+    await expect(page.locator(`[data-gap="${point.id}"]`)).toContainText("How to work on it");
+    await expect(page.locator(`[data-gap="${point.id}"]`)).toContainText("Replace the [placeholders]");
+  }
   await expect(page.getByText("Typed pitch, so pace isn't measured.")).toBeVisible();
   await expect(page.getByLabel(`Overall score ${report.overall} out of 100`)).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Seed checklist" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Seed pitch checklist" })).toBeVisible();
+  await expect(page.locator("[data-gap]")).toHaveCount(gaps.length);
+  await page.getByRole("heading", { name: "What to improve, and how" }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "generated-artifacts/report-improvement-plan.png" });
   await expect(page.getByLabel(`Overall score ${report.overall} out of 100`)).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -142,7 +152,8 @@ test("Stop freezes pitch time, reload restores its draft, Resume continues, Rese
   await expect(page.locator("#typedTx")).not.toBeEmpty();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(page.locator("#timer")).toHaveText("2:00");
+  await expect(page.locator("#timer")).toHaveText("5:00");
+  await expect(page.locator("#timer")).toBeHidden();
   await expect(page.locator("#typedTx")).toBeEmpty();
   expect(submissions).toBe(0);
 });
@@ -182,4 +193,29 @@ test("leaderboard filters show honest empty states and guest scores cannot be pu
   await expect(page.locator("#myScores")).toContainText("Publishing is optional");
   const response = await page.request.post("/api/leaderboard/publish", { headers: { "x-test-user": "pretend" }, data: { score: 100, displayName: "Forged" } });
   expect(response.status()).toBe(401);
+});
+
+test("Showtime countdown appears only at 45 seconds left and submits at five minutes", async ({ page, baseURL }) => {
+  await page.clock.install({ time: new Date("2026-10-24T10:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-10-24T10:00:01Z"));
+  await prepareSavedPractice(page, baseURL, {
+    stage: "seed", micLang: "en-IN",
+    show: { stage: "seed", phase: "paused", elapsedMs: 254000, typedDraft: pitch, segs: [] },
+  });
+  await page.goto("/#/showtime");
+  await expect(page.locator("#timer")).toHaveText("0:46");
+  await expect(page.locator("#timer")).toBeHidden();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await page.clock.runFor(999);
+  await expect(page.locator("#timer")).toBeHidden();
+  await page.clock.runFor(1);
+  await expect(page.locator("#timer")).toBeVisible();
+  await expect(page.locator("#timer")).toHaveText("0:45");
+  expect(await page.locator("#timer").evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeLessThanOrEqual(16);
+  await expect(page.locator("#timeNotice")).toContainText("45 seconds left");
+  await page.screenshot({ path: "generated-artifacts/showtime-final-countdown.png" });
+  const submission = page.waitForRequest(request => request.url().endsWith("/api/judge") && request.method() === "POST");
+  await page.clock.runFor(45000);
+  const request = await submission;
+  expect(request.postDataJSON()).toMatchObject({ transcript: pitch, metrics: { durationSec: 300, typed: true } });
 });
