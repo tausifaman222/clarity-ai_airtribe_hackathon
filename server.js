@@ -348,7 +348,7 @@ async function withEvaluation(stage, report, evalRun) {
 app.use("/api", (req, res) => fail(res, 404, "Not found"));
 app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 5000;
 app.listen(PORT, "0.0.0.0", () => {
   const a = aiStatus();
   console.log(`Sayso on http://localhost:${PORT}  ·  ${a.ready ? `AI: ${a.provider} ${a.model}` : `OFFLINE MODE (${a.problem})`}  ·  voice: ${ELEVEN_KEY() ? "ElevenLabs" : "browser"}`);
