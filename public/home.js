@@ -5,7 +5,6 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
   let language = languages.includes(state.practiceLanguage)
     ? state.practiceLanguage : state.micLang === "hi-IN" ? "हिंदी" : "English";
   let stage = stages.some(item => item.id === state.stage) ? state.stage : stages[0].id;
-  let mode = state.practiceMode === "pitch" ? "pitch" : "coach";
   let phase = "closed";
   let focusFrame;
 
@@ -71,7 +70,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
             <div class="cr-pitch-left">
               <span class="cr-pitch-icon" aria-hidden="true">${icon("lightbulb", 23)}</span>
               <div><span class="cr-live-tag">Available now</span><h3 class="cr-pitch-title">Startup pitch practice</h3>
-                <p class="cr-pitch-copy">Work through your story with a coach, or practise a full pitch with up to five minutes to explain it. Get feedback suited to your stage.</p>
+                <p class="cr-pitch-copy">See the full checklist, warm up with a coach, then deliver your uninterrupted five-minute pitch. Get feedback suited to your stage.</p>
               </div>
             </div>
             <button class="cr-start" type="button" data-action="open" aria-controls="cr-setup" aria-expanded="false">Start here ${icon("arrowRight", 17)}</button>
@@ -98,7 +97,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
 
   const flow = root.querySelector("#cr-setup");
   const savedPitch = state.show?.phase === "paused";
-  const savedCoach = state.coach?.paused;
+  const savedCoach = state.coach?.paused && state.lastPractice !== "pitch";
   const resumeKind = state.lastPractice === "coach" && savedCoach ? "coach" : savedPitch ? "pitch" : savedCoach ? "coach" : null;
   if (resumeKind) {
     root.querySelector("#savedPractice").innerHTML = `<aside class="cr-resume"><div><strong>Your practice is saved.</strong><p>Continue your ${resumeKind === "pitch" ? "pitch, with its timer and draft" : "coaching conversation"}. Saved in this tab.</p></div><button class="cr-step-continue" type="button" data-action="restore">Resume practice</button></aside>`;
@@ -106,7 +105,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
   const stageName = () => stages.find(item => item.id === stage).name;
   const remember = () => {
     state.stage = stage;
-    state.practiceMode = mode;
+    state.practiceMode = "warmup-interview";
     state.practiceLanguage = language;
     state.micLang = language === "हिंदी" ? "hi-IN" : "en-IN";
     save();
@@ -131,7 +130,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
       root.querySelector("#startBtn").focus();
       return;
     }
-    const progress = phase === "stage" ? "Step 1 of 2 · Your starting point" : phase === "mode" ? "Step 2 of 2 · Your practice style" : "Ready to begin";
+    const progress = phase === "stage" ? "Step 1 of 2 · Your starting point" : "Step 2 of 2 · Your interview plan";
     let content;
     if (phase === "stage") {
       content = `<h3 class="cr-flow-title" tabindex="-1">Where are you with your idea?</h3>
@@ -141,39 +140,27 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
             <strong>${item.name}</strong><small>${["Still exploring", "Getting started", "Finding momentum", "Growing further"][index]}</small>
           </button>`).join("")}
         </div>
-        <div class="cr-flow-actions"><span></span><button class="cr-step-continue" type="button" data-action="mode">Choose how to practice ${icon("arrowRight", 14)}</button></div>`;
+        <div class="cr-flow-actions"><span></span><button class="cr-step-continue" type="button" data-action="mode">Review the interview plan ${icon("arrowRight", 14)}</button></div>`;
     } else if (phase === "mode") {
-      content = `<h3 class="cr-flow-title" tabindex="-1">How would you like to rehearse?</h3>
-        <p class="cr-flow-desc">For your ${stageName()} idea, choose guided help or an uninterrupted run-through. You can try the other style later.</p>
-        <div class="cr-modes" role="group" aria-label="Choose a practice mode">
-          <button class="cr-mode" type="button" data-mode="coach" aria-pressed="${mode === "coach"}">
-            <span class="cr-mode-icon">${icon("messageCircle", 18)}</span><strong>Rehearse with a coach</strong>
-            <small>Shape your story one point at a time. Speak or type, ask questions, and get feedback after each turn. No time limit.</small>
-          </button>
-          <button class="cr-mode" type="button" data-mode="pitch" aria-pressed="${mode === "pitch"}">
-            <span class="cr-mode-icon">${icon("presentation", 18)}</span><strong>Full pitch practice</strong>
-            <small>Explain your idea without interruptions, with up to five minutes. The countdown appears only in the last 45 seconds.</small>
-          </button>
-        </div>
+      content = `<h3 class="cr-flow-title" tabindex="-1">One practice path, from warm-up to interview</h3>
+        <p class="cr-flow-desc">Here’s everything the ${stageName()} interview will look for. Take a couple of turns with your coach if helpful, then start the uninterrupted interview when you’re ready.</p>
+        <ol class="cr-flow-steps">
+          <li><b>Warm up</b><span>Talk through your idea with a coach. The complete checklist is visible below—nothing is hidden.</span></li>
+          <li><b>Investor interview</b><span>Give your explanation without interruptions, for up to five minutes. The countdown appears only in the final 45 seconds.</span></li>
+          <li><b>Personal feedback</b><span>See what was clear, exactly what needs more detail, and how to improve each missing point.</span></li>
+        </ol>
+        <section class="cr-stage-checklist" aria-labelledby="cr-checklist-title">
+          <h4 id="cr-checklist-title">Full ${stageName()} checklist</h4>
+          <p>Use these points as a guide, not a script.</p>
+          <ol>${stages.find(item => item.id === stage).items.map(item => `<li>${item.must ? `<span class="cr-key-point">Key</span>` : ""}<div><b>${item.title}</b><p>${item.good}</p></div></li>`).join("")}</ol>
+        </section>
         <div class="cr-flow-actions">
-          <button class="cr-flow-back" type="button" data-action="stage">${icon("arrowLeft", 14)} Back to stage</button>
-          <button class="cr-step-continue" type="button" data-action="ready">Confirm practice setup ${icon("arrowRight", 14)}</button>
+          <button class="cr-flow-back" type="button" data-action="stage">${icon("arrowLeft", 14)} Change stage</button>
+          <button class="cr-step-continue" type="button" data-action="launch">Start my warm-up ${icon("arrowRight", 14)}</button>
         </div>`;
-    } else {
-      content = `<div class="cr-ready" role="status">
-        <span class="cr-ready-icon">${icon("check", 23)}</span>
-        <div><h3 tabindex="-1">You’re ready to practice.</h3>
-          <p>${mode === "coach" ? "A guided rehearsal" : "A full pitch practice"} for your ${stageName()} idea, in ${language}. Start with what you know. This is practice, not a test.</p>
-        </div>
-        <p class="cr-ready-note">You can speak or type. Microphone permission is only requested when you begin speaking.</p>
-      </div>
-      <div class="cr-ready-actions">
-        <button type="button" data-action="launch">${mode === "coach" ? "Start coaching" : "Enter Showtime"} ${icon("arrowRight", 15)}</button>
-        <button type="button" data-action="stage">Change choices</button>
-      </div>`;
     }
     flow.innerHTML = `<div class="cr-flow-head">
-      <div class="cr-flow-progress"><span>${phase === "stage" ? "1" : phase === "mode" ? "2" : icon("check", 13)}</span>${progress}</div>
+       <div class="cr-flow-progress"><span>${phase === "stage" ? "1" : "2"}</span>${progress}</div>
       <button class="cr-flow-close" type="button" data-action="close" aria-label="Close practice setup">${icon("x", 16)} Close</button>
     </div><div class="cr-flow-body">${content}</div>`;
     if (focus) moveFocus();
@@ -186,27 +173,18 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
       language = button.dataset.language;
       remember();
       root.querySelectorAll("[data-language]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.language === language)));
-      if (phase === "ready") renderSetup(false);
     } else if (button.dataset.stage) {
       stage = button.dataset.stage;
       remember();
       flow.querySelectorAll("[data-stage]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.stage === stage)));
-    } else if (button.dataset.mode) {
-      mode = button.dataset.mode;
-      remember();
-      flow.querySelectorAll("[data-mode]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.mode === mode)));
     } else if (button.dataset.action === "restore") {
       state.stage = resumeKind === "pitch" ? state.show.stage : state.coach.stage;
       save(); navigate(resumeKind === "pitch" ? "/showtime" : "/coach");
     } else if (button.dataset.action === "launch") {
-      if (mode === "pitch" && savedPitch) {
-        if (!confirm("Start a new pitch and clear the saved pitch draft and timer? Choose Resume practice instead to keep going.")) return;
-        state.show = null;
-      }
       remember();
       state.demo = false;
       save();
-      navigate(mode === "coach" ? "/coach" : "/briefing");
+      navigate("/coach");
     } else if (button.dataset.action) {
       const action = button.dataset.action;
       phase = action === "open" ? "stage" : action === "close" ? "closed" : action;

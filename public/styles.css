@@ -105,7 +105,7 @@ a.step:hover { color: var(--text); }
 .use.active { cursor: pointer; }
 .footer-strip { margin-top: 40px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--pill); text-align: center; color: var(--muted); font-size: 14px; background: var(--surface); }
 
-/* ---------- stage + mode ---------- */
+/* ---------- stage + interview plan ---------- */
 .stage-card { cursor: pointer; position: relative; display: flex; flex-direction: column; gap: 8px; text-align: left; width: 100%; }
 .stage-card .radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); display: grid; place-items: center; flex: none; transition: border-color var(--t); }
 .stage-card.active .radio { border-color: var(--accent); }
@@ -123,12 +123,6 @@ a.step:hover { color: var(--text); }
 .pop li { margin: 2px 0; }
 .must { color: var(--warning); }
 .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
-.mode-card { display: flex; flex-direction: column; gap: 12px; padding: 28px; }
-.mode-card .emoji { font-size: 34px; line-height: 1; }
-.mode-card ul { margin: 4px 0 8px; padding: 0; list-style: none; display: grid; gap: 8px; }
-.mode-card li { display: flex; gap: 10px; align-items: center; font-size: 15px; }
-.mode-card li .i { color: var(--success); }
-.mode-card .btn { margin-top: auto; align-self: flex-start; }
 .helper { text-align: center; color: var(--muted); font-size: 14px; margin-top: 20px; }
 
 /* ---------- avatars ---------- */
@@ -196,9 +190,26 @@ textarea.field { width: 100%; min-height: 130px; resize: vertical; line-height: 
 
 .guide { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 14px; }
 .guide h3 { font-size: 17px; }
+.interview-plan { max-width: 930px; margin: 0 auto; }
+.interview-steps { display: grid; gap: 14px; padding: 0; margin: 0 0 25px; list-style: none; }
+.interview-steps li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; }
+.interview-step-number { width: 28px; height: 28px; display: grid; place-items: center; flex: none; border: 1px solid var(--border); border-radius: 50%; color: var(--accent); font-size: 13px; font-weight: 700; }
+.interview-steps b { font-size: 15px; }
+.interview-steps p { margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.interview-checklist { padding-top: 22px; border-top: 1px solid var(--border); }
+.interview-checklist > p { margin: 5px 0 14px; color: var(--muted); font-size: 13px; }
+.interview-checklist ol { display: grid; gap: 12px; padding: 0; margin: 0; list-style: none; }
+.interview-checklist li { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.interview-checklist li > div { min-width: 0; }
+.interview-checklist li p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.warmup-handoff { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 14px 0 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.warmup-handoff .eyebrow { margin: 0 0 4px; color: var(--accent); font-size: 10px; letter-spacing: .1em; }
+.warmup-handoff strong { font-size: 15px; }
+.warmup-handoff p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.ck { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; border: 1px solid transparent; color: var(--muted); transition: background var(--t), color var(--t), border-color var(--t); }
+.ck { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 12px; border: 1px solid transparent; color: var(--muted); transition: background var(--t), color var(--t), border-color var(--t); }
 .ck .box { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #3A3A46; display: grid; place-items: center; flex: none; transition: background var(--t), border-color var(--t); }
+.ck .box { margin-top: 2px; }
 .ck .box .i { opacity: 0; transform: scale(.4); transition: opacity var(--t), transform 260ms cubic-bezier(.3, 1.6, .5, 1); color: #0B0B0F; }
 .ck.on { color: var(--text); }
 .ck.on .box { background: var(--success); border-color: var(--success); }
@@ -206,7 +217,9 @@ textarea.field { width: 100%; min-height: 130px; resize: vertical; line-height: 
 .ck.pop-in { animation: tick .6s ease; }
 @keyframes tick { 0% { background: rgba(46, 204, 143, .0); } 30% { background: rgba(46, 204, 143, .16); } 100% { background: transparent; } }
 .ck.focus { border-color: rgba(124, 92, 255, .4); background: var(--accent-soft); color: var(--text); }
-.ck .name { flex: 1; font-size: 14.5px; }
+.ck-content { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.ck .name { font-size: 14.5px; }
+.ck-detail { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .ck .tipbtn { padding: 2px; }
 .protips { background: var(--bg); border: 1px dashed #34343F; border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
 .protips b { color: var(--text); display: block; margin-bottom: 4px; font-size: 13px; }
@@ -329,7 +342,8 @@ details.card[open] > summary .i:last-child { transform: rotate(180deg); }
   .g3, .g2, .g4 { grid-template-columns: 1fr; }
   .g4.tiles { grid-template-columns: 1fr 1fr; }
   .card { padding: 18px; }
-  .mode-card { padding: 22px; }
+  .warmup-handoff { align-items: stretch; flex-direction: column; padding: 15px; }
+  .warmup-handoff .btn { width: 100%; justify-content: center; }
   .use { min-height: 0; }
   .topbar-in { gap: 10px; }
   .step-line { width: 8px; }

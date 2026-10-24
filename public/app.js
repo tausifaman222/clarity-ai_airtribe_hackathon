@@ -298,37 +298,32 @@ function stageView(root) {
 // ======================= SCREEN 3: MODE =======================
 function modeView(root) {
   const stage = stageById(S.stage); if (!stage) return go("/stage");
-  const li = (t) => `<li>${icon("check", 16)} ${esc(t)}</li>`;
   root.innerHTML = `
-  <div class="head center"><h2>What would help you most today?</h2>
-    <p>Your stage: <b style="color:var(--text)">${esc(stage.name)}</b> · <a href="#/stage" class="linkbtn">Change</a></p></div>
-  <div class="grid g2">
-    <div class="card hover mode-card">
-      <div class="emoji" aria-hidden="true">🧑‍🏫</div>
-      <div><div class="small muted" style="font-weight:600">Coach</div><h3 style="font-size:22px">Rehearse with a coach</h3></div>
-      <p class="muted">Still shaping the idea? Talk or type it through with your AI coach. Work on one point at a time, ask questions, and make your explanation clearer.</p>
-      <ul>${li("Feedback after each turn")}${li("A checklist suited to your stage")}${li("No time limit; stop and resume when you need")}</ul>
-      <button class="btn primary lg" id="goCoach">Start coaching</button>
-    </div>
-    <div class="card hover mode-card">
-      <div class="emoji" aria-hidden="true">🎤</div>
-      <div><div class="small muted" style="font-weight:600">Showtime</div><h3 style="font-size:22px">Practise your full pitch</h3></div>
-      <p class="muted">Ready to explain it from start to finish? Rehearse without interruptions, then see what was clear, what was missing, and how to improve it.</p>
-      <ul>${li("Up to five minutes, at your own pace")}${li("A quiet reminder in the final 45 seconds")}${li("Specific next steps for every missing or unclear point")}</ul>
-      <button class="btn primary lg" id="goShow">Enter Showtime</button>
-    </div>
-  </div>
-  <p class="helper">Not sure where to start? Choose Coach to shape your story. Use Showtime whenever you want to practise the whole explanation.</p>`;
-  $("#goCoach", root).addEventListener("click", () => go("/coach"));
-  $("#goShow", root).addEventListener("click", () => go("/briefing"));
+  <div class="head center"><p class="eyebrow">Your ${esc(stage.name)} practice</p><h2>Warm up, then meet your investor.</h2>
+    <p>One clear path. The complete checklist is shown before you begin; the interview itself is uninterrupted.</p></div>
+  <section class="card interview-plan">
+    <ol class="interview-steps">
+      <li><span class="interview-step-number">1</span><div><b>Short, guided warm-up</b><p>Talk your idea through with a coach. Try a couple of turns or continue when you feel ready.</p></div></li>
+      <li><span class="interview-step-number">2</span><div><b>Live investor interview</b><p>Give your own explanation for up to five minutes. The AI investor will not interrupt. The countdown appears only for the last 45 seconds.</p></div></li>
+      <li><span class="interview-step-number">3</span><div><b>Specific feedback</b><p>See exactly which points were missing or unclear and what to say or test next.</p></div></li>
+    </ol>
+    <section class="interview-checklist" aria-labelledby="modeChecklistHeading">
+      <h3 id="modeChecklistHeading">The complete ${esc(stage.name)} checklist</h3>
+      <p>Every point is visible up front. Use it as a guide—not a script.</p>
+      <ol>${stage.items.map(item => `<li>${item.must ? '<span class="must">★ Key</span>' : ""}<div><b>${esc(item.title)}</b><p>${esc(item.good)}</p></div></li>`).join("")}</ol>
+    </section>
+    <div class="actions"><a href="#/stage" class="linkbtn">Change stage</a><button class="btn primary lg" id="startWarmup">Start warm-up ${icon("arrowRight", 16)}</button></div>
+  </section>`;
+  $("#startWarmup", root).addEventListener("click", () => go("/coach"));
 }
 
 function checklistHtml(stage, covered = [], focus = null, opts = {}) {
   return `<ul class="checklist ${opts.cls || ""}">${stage.items.map(i => `
     <li class="ck ${covered.includes(i.id) ? "on" : ""} ${focus === i.id ? "focus" : ""}" data-ck="${i.id}">
       <span class="box">${icon("check", 13)}</span>
-      <span class="name">${esc(i.title)}${i.must ? ' <span class="must" title="Must-have">★</span>' : ""}</span>
-      ${tip(i.title, `<span>${esc(i.good)}</span>`)}
+      <span class="ck-content"><span class="name">${esc(i.title)}${i.must ? ' <span class="must" title="Key for this stage">★</span>' : ""}</span>
+      ${opts.details ? `<span class="ck-detail">${esc(i.good)}</span>` : ""}</span>
+      ${opts.details ? "" : tip(i.title, `<span>${esc(i.good)}</span>`)}
     </li>`).join("")}</ul>`;
 }
 
@@ -353,14 +348,20 @@ function coachView(root) {
     <button class="btn sm primary" id="resumePractice">Resume</button>
     <button class="btn sm" id="resetPractice">Reset</button>
   </div>
+  <section class="warmup-handoff" aria-label="Next: live investor interview">
+    <div><span class="eyebrow">NEXT · LIVE INVESTOR INTERVIEW</span>
+      <strong>Ready when you are</strong>
+      <p>Try a couple of warm-up turns, or continue now. You’ll see the full checklist again before the interview; the five-minute timer starts only when you begin.</p>
+    </div>
+    <button class="btn primary" id="startInterview">Continue to interview ${icon("arrowRight", 16)}</button>
+  </section>
   <div class="room">
-    <section class="card convo" aria-label="Conversation with your coach">
+    <section class="card convo" aria-label="Guided pitch warm-up">
       <div class="convo-head">
         <div class="avatar coach" id="coachAv">AC</div>
-        <div><div style="font-weight:600">Your AI pitch coach</div><span class="status" id="status">Ready</span></div>
+        <div><div style="font-weight:600">Your warm-up coach</div><span class="status" id="status">Ready</span></div>
         <span class="spacer"></span>
         <span class="progress-chip" id="prog"></span>
-        <button class="btn primary sm" id="verdictBtn" disabled title="Share at least two messages to get a useful readiness check">Check pitch readiness</button>
       </div>
       ${noVoiceBanner()}
       <div class="msgs" id="msgs" aria-live="polite"></div>
@@ -380,7 +381,7 @@ function coachView(root) {
     <aside class="card guide" aria-label="Checklist">
       <h3>Your ${esc(stage.name)} pitch checklist</h3>
       <p class="small muted" style="margin-top:8px">Use this as a guide, not a script. Start with what you know and be clear about what you're still testing.</p>
-      <div id="ckWrap">${checklistHtml(stage, C.covered, C.nextFocus)}</div>
+      <div id="ckWrap">${checklistHtml(stage, C.covered, C.nextFocus, { details: true })}</div>
       <div class="protips"><b>Pro tips</b>${esc(PRO_TIPS)}</div>
     </aside>
   </div>`;
@@ -398,7 +399,6 @@ function coachView(root) {
     statusEl.className = `status ${s}`;
     statusEl.textContent = { idle: "Ready", listening: "Listening…", thinking: "Thinking…", speaking: "Speaking…" }[s];
     av.className = `avatar coach ${s === "speaking" ? "speaking" : s === "thinking" ? "thinking" : ""}`;
-    updateVerdictBtn();
   }
   function micOn() { micBtn.classList.add("on"); micBtn.setAttribute("aria-label", "Tap to send"); }
   function micOff() { micBtn.classList.remove("on"); micBtn.setAttribute("aria-label", "Tap to talk"); }
@@ -430,12 +430,10 @@ function coachView(root) {
     msgsEl.scrollTop = msgsEl.scrollHeight;
   }
   function renderChecklist(fresh = []) {
-    $("#ckWrap", root).innerHTML = checklistHtml(stage, C.covered, C.nextFocus);
+    $("#ckWrap", root).innerHTML = checklistHtml(stage, C.covered, C.nextFocus, { details: true });
     fresh.forEach(id => $(`[data-ck="${id}"]`, root)?.classList.add("pop-in"));
     $("#prog", root).textContent = `✓ ${C.covered.length}/${stage.items.length} covered`;
   }
-  function userTurns() { return C.history.filter(m => m.role === "user" && !m.failed).length; }
-  function updateVerdictBtn() { const b = $("#verdictBtn", root); if (b) b.disabled = userTurns() < 2 || sending; }
 
   async function speakCoach(text) {
     if (!alive || paused) return;
@@ -474,45 +472,6 @@ function coachView(root) {
     }
   }
 
-  async function openVerdict() {
-    stopListening(); tts.stop(); handsFree = false; setStatus("idle");
-    const history = C.history.filter(m => !m.failed).map(({ role, text }) => ({ role, text }));
-    const m = openModal(`
-      <div class="row" style="gap:14px"><div class="avatar meera lg thinking" id="vAv">MK</div>
-        <div><h2>Your pitch readiness check</h2><div class="row small muted" style="gap:8px;margin-top:2px">Meera Kapoor <span class="ai-label">AI practice investor</span></div></div>
-        <span class="spacer"></span><button class="iconbtn" data-close aria-label="Close">${icon("x", 18)}</button></div>
-      <div id="vBody"><div class="shimmer" style="width:100%;height:140px;margin-top:20px"></div></div>`, () => tts.stop());
-    $("[data-close]", m.el).addEventListener("click", m.close);
-    const body = $("#vBody", m.el), vAv = $("#vAv", m.el);
-    const load = async () => {
-      body.innerHTML = `<div class="shimmer" style="width:100%;height:140px;margin-top:20px"></div>`; vAv.className = "avatar meera lg thinking";
-      try {
-        const v = await callWithRetry("/api/verdict", { stage: stage.id, history, sid: SID });
-        const pill = { ready: ["ok", "Ready for Showtime"], almost: ["warn", "Almost there"], needs_work: ["bad", "Needs work"] }[v.verdict];
-        body.innerHTML = `
-          <div style="margin-top:18px"><span class="pill big ${pill[0]}">${pill[1]}</span></div>
-          <p style="font-size:18px;font-style:italic;margin-top:14px">"${esc(v.headline)}"</p>
-          ${v.clear.length ? `<div class="msec"><h4>✅ What's clear</h4><ul class="mlist">${v.clear.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
-          ${v.missing.length ? `<div class="msec"><h4>❌ What's missing</h4><ul class="mlist">${v.missing.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
-          ${v.fixFirst ? `<div class="msec"><h4>🎯 Fix this first</h4><p style="margin-top:6px">${esc(v.fixFirst)}</p></div>` : ""}
-          ${v.offline ? `<p class="flag" style="margin-top:14px">Offline mode: this is a keyword-based review, not an AI assessment.</p>` : ""}
-          <div class="actions"><button class="btn" data-keep>Keep coaching</button><button class="btn primary" data-show>Go to Showtime ${icon("arrowRight", 16)}</button></div>`;
-        $("[data-keep]", body).addEventListener("click", m.close);
-        $("[data-show]", body).addEventListener("click", () => { m.close(); go("/briefing"); });
-        vAv.className = "avatar meera lg speaking";
-        await tts.speak(v.headline, "meera");
-        vAv.className = "avatar meera lg";
-      } catch (e) {
-        vAv.className = "avatar meera lg";
-        body.innerHTML = `<p class="flag" style="margin-top:18px">${esc(e.status && e.status < 500 ? e.message : "Meera couldn't give her take just now.")}</p>
-          <div class="actions"><button class="btn" data-keep>Keep coaching</button><button class="btn primary" data-again>${icon("retry", 15)} Try again</button></div>`;
-        $("[data-keep]", body).addEventListener("click", m.close);
-        $("[data-again]", body).addEventListener("click", load);
-      }
-    };
-    load();
-  }
-
   // events
   micBtn.addEventListener("click", micTap);
   function micTap() {
@@ -527,12 +486,14 @@ function coachView(root) {
     e.preventDefault(); if (paused) return;
     const inp = $("#typeIn", root); const t = inp.value; inp.value = ""; C.draft = ""; save(); send(t, false);
   });
+  $("#startInterview", root).addEventListener("click", () => {
+    handsFree = false; stopListening(); tts.stop(); go("/briefing");
+  });
   msgsEl.addEventListener("click", (e) => {
     const r = e.target.closest("[data-replay]");
     if (r) { stopListening(); handsFree = false; const txt = C.history[+r.dataset.replay]?.text; if (txt) speakCoach(txt); return; }
     if (e.target.closest("[data-resend]") && !sending) askCoach();
   });
-  $("#verdictBtn", root).addEventListener("click", openVerdict);
   const coachControls = () => {
     $("#stopPractice", root).disabled = paused;
     $("#resumePractice", root).disabled = !paused;
@@ -542,8 +503,7 @@ function coachView(root) {
     $("#practiceStatus", root).textContent = paused ? "Stopped. Your conversation and draft are saved in this tab." : "Practice in progress. Stop saves your place without submitting.";
     if (paused) {
       statusEl.textContent = "Stopped · progress saved";
-      $("#verdictBtn", root).disabled = true;
-    } else { setStatus("idle"); updateVerdictBtn(); }
+    } else { setStatus("idle"); }
   };
   $("#stopPractice", root).addEventListener("click", () => {
     paused = true; C.paused = true; handsFree = false;
@@ -579,11 +539,11 @@ function coachView(root) {
 function briefingView(root) {
   const stage = stageById(S.stage); if (!stage) return go("/stage");
   root.innerHTML = `
-  <div class="head"><h2>Showtime: ${esc(stage.name)} pitch</h2>
-    <p>Explain your idea from start to finish to Meera, your AI practice investor. You have up to five minutes, without interruptions. Afterwards, get a clear plan for improving your next pitch.</p></div>
+  <div class="head"><p class="eyebrow">STEP 2 · LIVE INVESTOR INTERVIEW</p><h2>Your ${esc(stage.name)} interview</h2>
+    <p>Your warm-up is done. Here is the complete checklist one more time. When you begin, explain your idea to Meera without interruptions, for up to five minutes. Then get a detailed plan for what to improve next.</p></div>
   <div class="grid g2">
     <div class="card"><div class="sec-title"><h3>A guide for your explanation</h3></div>
-      ${checklistHtml(stage, [], null)}
+      ${checklistHtml(stage, [], null, { details: true })}
       <p class="small muted" style="margin-top:10px"><span class="must">★</span> Key points for the ${esc(stage.name)} stage. You don't need a perfect script.</p></div>
     <div class="card" style="display:flex;flex-direction:column;gap:18px">
       <div class="sec-title" style="margin:0"><h3>Before you start</h3></div>
@@ -595,10 +555,14 @@ function briefingView(root) {
       <div class="row" style="gap:14px;margin-top:auto"><div class="avatar meera lg">MK</div>
         <div><div class="meera-name">Meera Kapoor <span class="ai-label">AI practice investor</span></div><div class="small muted">A fictional practice partner—not a real funding decision.</div></div></div>
       ${S.demo ? `<span class="pill accent" style="align-self:flex-start">Demo: sample Hinglish Seed pitch will be pre-filled</span>` : ""}
-      <button class="btn primary lg" id="ready">I'm ready, start</button>
+      <button class="btn primary lg" id="ready">Begin interview ${icon("arrowRight", 16)}</button>
     </div>
   </div>`;
-  $("#ready", root).addEventListener("click", () => { S.show = newShow(stage.id, "countdown"); save(); go("/showtime"); });
+  $("#ready", root).addEventListener("click", () => {
+    if (S.show?.phase === "paused" && S.show.stage === stage.id &&
+        !confirm("Start a new interview and clear your saved pitch draft and timer? Cancel to keep your saved interview.")) return;
+    S.show = newShow(stage.id, "countdown"); save(); go("/showtime");
+  });
 }
 const newShow = (stage, phase) => ({ stage, phase, pending: null });
 
@@ -628,7 +592,7 @@ function showtimeView(root) {
   </div>
   <div class="room show-room">
     <section class="stage-show">
-      <div class="row"><span class="pill accent">🎤 Showtime · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
+      <div class="row"><span class="pill accent">🎤 Live investor interview · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
       <div class="pitch-time" id="timer" role="timer" aria-label="Time remaining" aria-live="off" ${PITCH_SECONDS - elapsedMs / 1000 > FINAL_COUNTDOWN_SECONDS ? "hidden" : ""}>${fmt(Math.ceil(PITCH_SECONDS - elapsedMs / 1000))}</div>
       <p class="small muted" id="timeNotice" role="status"></p>
       <div class="meera-zone">
@@ -951,7 +915,7 @@ function reportView(root) {
       <div class="transcript">${highlight(R.transcript || "")}</div></details>
   </div>
   <div class="sticky-bar"><div class="in">
-    <button class="btn primary" id="retryShow">↻ Retry Showtime</button>
+    <button class="btn primary" id="retryShow">↻ Retry interview</button>
     <button class="btn" id="toCoach">Practice with Coach</button>
     <button class="btn ghost" id="toStage">Change stage</button></div></div>`;
 

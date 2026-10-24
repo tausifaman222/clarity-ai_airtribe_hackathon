@@ -19,13 +19,19 @@ test("choose a stage, submit a typed pitch, and retain its report on reload", as
   await page.locator("#startBtn").click();
   await page.locator('[data-stage="seed"]').click();
   await expect(page.locator('[data-stage="seed"]')).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Choose how to practice" }).click();
-  await page.getByRole("button", { name: /Full pitch practice/ }).click();
-  await page.getByRole("button", { name: "Confirm practice setup" }).click();
-  await expect(page.locator(".cr-ready")).toContainText("your Seed idea, in English");
-  await page.getByRole("button", { name: "Enter Showtime" }).click();
-  await expect(page.getByRole("heading", { name: "Showtime: Seed pitch" })).toBeVisible();
-  await page.getByRole("button", { name: "I'm ready, start" }).click();
+  await page.getByRole("button", { name: "Review the interview plan" }).click();
+  await expect(page.getByRole("heading", { name: "One practice path, from warm-up to interview" })).toBeVisible();
+  await expect(page.locator(".cr-stage-checklist li").first()).toBeVisible();
+  await page.getByRole("button", { name: "Start my warm-up" }).click();
+  await expect(page).toHaveURL(/#\/coach$/);
+  await expect(page.getByText("Your warm-up coach")).toBeVisible();
+  await expect(page.locator(".ck-detail").first()).toBeVisible();
+  await page.getByRole("button", { name: /Continue to interview/ }).click();
+  await expect(page).toHaveURL(/#\/briefing$/);
+  await expect(page.getByRole("heading", { name: "Your Seed interview" })).toBeVisible();
+  await expect(page.locator(".ck-detail").first()).toBeVisible();
+  await page.getByRole("button", { name: /Begin interview/ }).click();
+  await expect(page).toHaveURL(/#\/showtime$/);
   await expect(page.locator("#submitTyped")).toBeEnabled();
   await expect(page.locator("#mic")).toBeDisabled();
   await page.getByPlaceholder("Type your pitch here…").fill(pitch);
@@ -57,7 +63,7 @@ test("choose a stage, submit a typed pitch, and retain its report on reload", as
   expect(errors).toEqual([]);
 });
 
-test("mobile setup keeps language and stage, supports keyboard choices, and opens coaching", async ({ page, baseURL }) => {
+test("mobile setup keeps language and stage, supports keyboard choices, and opens the warm-up", async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   let paidRequests = 0;
@@ -81,8 +87,9 @@ test("mobile setup keeps language and stage, supports keyboard choices, and open
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Where are you with your idea?" })).toBeFocused();
   await page.locator('[data-stage="preseed"]').click();
-  await page.getByRole("button", { name: "Choose how to practice" }).click();
-  await page.getByRole("button", { name: "Back to stage" }).click();
+  await page.getByRole("button", { name: "Review the interview plan" }).click();
+  await expect(page.locator(".cr-stage-checklist li").first()).toBeVisible();
+  await page.getByRole("button", { name: "Change stage" }).click();
   await expect(page.locator('[data-stage="preseed"]')).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Close practice setup" }).click();
   await expect(start).toBeFocused();
@@ -90,18 +97,17 @@ test("mobile setup keeps language and stage, supports keyboard choices, and open
   await expect(page.getByRole("button", { name: "हिंदी", exact: true })).toHaveAttribute("aria-pressed", "true");
   await start.click();
   await expect(page.locator('[data-stage="preseed"]')).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Choose how to practice" }).click();
-  await page.getByRole("button", { name: "Confirm practice setup" }).click();
-  await expect(page.locator(".cr-ready")).toContainText("A guided rehearsal for your Pre-seed idea, in हिंदी");
-  await expect(page.locator(".cr-ready")).toContainText("You can speak or type");
+  await page.getByRole("button", { name: "Review the interview plan" }).click();
+  await expect(page.locator(".cr-stage-checklist li").first()).toBeVisible();
   expect(paidRequests).toBe(0);
-  await page.getByRole("button", { name: "Start coaching" }).click();
+  await page.getByRole("button", { name: "Start my warm-up" }).click();
   await expect(page).toHaveURL(/#\/coach$/);
+  await expect(page.getByRole("button", { name: /Continue to interview/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "हिंदी (hi-IN)", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("textbox", { name: "Type instead" })).toBeVisible();
 });
 
-test("legacy stage and mode links still work, and future scenarios are not dead-end actions", async ({ page }) => {
+test("legacy stage and mode links open the unified interview flow without separate mode choices", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".cr-future")).toContainText("not available yet");
   await expect(page.locator(".cr-future button, .cr-future a")).toHaveCount(0);
@@ -110,8 +116,9 @@ test("legacy stage and mode links still work, and future scenarios are not dead-
   await page.locator('[data-stage="seriesa"]').click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/#\/mode$/);
-  await expect(page.getByRole("button", { name: "Start coaching" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Enter Showtime" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Warm up, then meet your investor." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start warm-up", exact: true })).toBeVisible();
+  await expect(page.getByText("Practise your full pitch", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "Clarity AI home" }).click();
   await expect(page.getByRole("heading", { name: /Speak confidently/ })).toBeVisible();
 });
@@ -221,6 +228,14 @@ test("Showtime countdown appears only at 45 seconds left and submits at five min
 });
 
 test("username sign-in screens explain the account model and keep guest practice available", async ({ page }) => {
+  await page.goto("/");
+  const homeAccounts = page.locator(".cr-product-nav [data-auth-controls]");
+  await expect(homeAccounts.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(homeAccounts.getByRole("link", { name: "Create account" })).toBeVisible();
+  await page.goto("/#/stage");
+  const appAccounts = page.locator(".topbar [data-auth-controls]");
+  await expect(appAccounts.getByRole("link", { name: "Sign in" })).toBeVisible();
+
   await page.goto("/sign-up");
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
   await expect(page.getByLabel("Username")).toBeVisible();
