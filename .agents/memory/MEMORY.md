@@ -1,3 +1,4 @@
 - [Groq provider choice](groq.md) — User requested Groq; reasoning models need extra token allowance for short JSON responses.
 - [Browser tests on Nix](browser-tests.md) — Use compatible Chromium and keep test credentials and counters separate from the live preview.
 - [Product positioning](product-positioning.md) — Communication confidence is the mission; startup pitching is one practice use case.
+- [Clerk project titles](clerk-project-names.md) — Archive-style imported project titles can block managed auth provisioning; rename the editor project title first.

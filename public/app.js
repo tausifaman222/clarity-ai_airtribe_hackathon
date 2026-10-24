@@ -1,7 +1,9 @@
-// Sayso client: hash-routed SPA. State lives in memory + sessionStorage (no auth, no database).
+// Clarity AI practice client: hash-routed SPA with tab-local drafts.
+// Clerk authenticates accounts; verified leaderboard scores are stored server-side.
 import { STAGES, stageById, PRO_TIPS, FILLERS, HEDGES, wordCount, DEMO_PITCH } from "./rubrics.js";
 import { icon } from "./icons.js";
 import { renderHome } from "./home.js";
+import { renderLeaderboard, mountPublishPanel } from "./leaderboard.js";
 
 // ---------- utilities ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -229,6 +231,7 @@ function router() {
   const root = document.createElement("div"); root.className = "view"; v.append(root);
   window.scrollTo(0, 0);
   view(root);
+  document.dispatchEvent(new Event("clarity:route"));
 }
 
 // Tooltips: hover/focus on desktop, tap to toggle on touch.
@@ -329,13 +332,25 @@ function checklistHtml(stage, covered = [], focus = null, opts = {}) {
 
 // ======================= SCREEN 4: COACH ROOM =======================
 function coachView(root) {
+  S.lastPractice = "coach";
   const stage = stageById(S.stage); if (!stage) return go("/stage");
   if (!S.coach || S.coach.stage !== stage.id) S.coach = { stage: stage.id, history: [], covered: [], nextFocus: null };
   const C = S.coach;
   let alive = true, status = "idle", handsFree = false, sending = false, finals = "", interim = "", silence = null;
-  onLeave(() => { alive = false; clearTimeout(silence); mic.stop(); });
+  let paused = !!C.paused;
+  onLeave(() => {
+    C.paused = true;
+    C.draft = [$("#typeIn", root)?.value, finals, interim].filter(Boolean).join(" ").slice(0, 2000);
+    save(); alive = false; clearTimeout(silence); mic.stop();
+  });
 
   root.innerHTML = `
+  <div class="practice-toolbar" aria-label="Practice controls">
+    <p id="practiceStatus" role="status">Your conversation is saved in this tab.</p>
+    <button class="btn sm" id="stopPractice">Stop</button>
+    <button class="btn sm primary" id="resumePractice">Resume</button>
+    <button class="btn sm" id="resetPractice">Reset</button>
+  </div>
   <div class="room">
     <section class="card convo" aria-label="Conversation with your coach">
       <div class="convo-head">
@@ -420,7 +435,7 @@ function coachView(root) {
   function updateVerdictBtn() { const b = $("#verdictBtn", root); if (b) b.disabled = userTurns() < 2 || sending; }
 
   async function speakCoach(text) {
-    if (!alive) return;
+    if (!alive || paused) return;
     setStatus("speaking");
     await tts.speak(text, "coach");
     if (!alive || status !== "speaking") return;
@@ -429,7 +444,7 @@ function coachView(root) {
   }
   async function send(text, viaVoice) {
     text = String(text || "").trim();
-    if (!text || sending) return;
+    if (!text || sending || paused) return;
     stopListening(); finals = ""; interim = ""; showInterim();
     if (!viaVoice) handsFree = false;
     C.history.push({ role: "user", text }); save();
@@ -446,11 +461,12 @@ function coachView(root) {
       sending = false;
       if (!alive) return;
       renderMsgs(); renderChecklist(C.covered.filter(id => !before.has(id)));
+      if (paused) coachControls();
       await speakCoach(r.reply);
     } catch (e) {
       sending = false; last.failed = true; save();
       if (!alive) return;
-      setStatus("idle"); renderMsgs();
+      setStatus("idle"); renderMsgs(); if (paused) coachControls();
       toast(e.status === 429 ? e.message : "Couldn't reach your coach. Tap Retry on your message.", "err");
     }
   }
@@ -497,18 +513,48 @@ function coachView(root) {
   // events
   micBtn.addEventListener("click", micTap);
   function micTap() {
-    if (sending) return;
+    if (sending || paused) return;
     if (status === "speaking") { tts.stop(); handsFree = true; return startListening(); }
     if (mic.on) { const t = `${finals} ${interim}`.trim(); if (t) send(t, true); else { handsFree = false; stopListening(); } return; }
     handsFree = true; startListening();
   }
-  $("#typeForm", root).addEventListener("submit", (e) => { e.preventDefault(); const inp = $("#typeIn", root); const t = inp.value; inp.value = ""; send(t, false); });
+  $("#typeIn", root).value = C.draft || "";
+  $("#typeIn", root).addEventListener("input", e => { C.draft = e.target.value; save(); });
+  $("#typeForm", root).addEventListener("submit", (e) => {
+    e.preventDefault(); if (paused) return;
+    const inp = $("#typeIn", root); const t = inp.value; inp.value = ""; C.draft = ""; save(); send(t, false);
+  });
   msgsEl.addEventListener("click", (e) => {
     const r = e.target.closest("[data-replay]");
     if (r) { stopListening(); handsFree = false; const txt = C.history[+r.dataset.replay]?.text; if (txt) speakCoach(txt); return; }
     if (e.target.closest("[data-resend]") && !sending) askCoach();
   });
   $("#verdictBtn", root).addEventListener("click", openVerdict);
+  const coachControls = () => {
+    $("#stopPractice", root).disabled = paused;
+    $("#resumePractice", root).disabled = !paused;
+    $("#typeIn", root).disabled = paused;
+    $("button[type=submit]", root).disabled = paused;
+    micBtn.disabled = paused || !SR;
+    $("#practiceStatus", root).textContent = paused ? "Stopped. Your conversation and draft are saved in this tab." : "Practice in progress. Stop saves your place without submitting.";
+    if (paused) {
+      statusEl.textContent = "Stopped · progress saved";
+      $("#verdictBtn", root).disabled = true;
+    } else { setStatus("idle"); updateVerdictBtn(); }
+  };
+  $("#stopPractice", root).addEventListener("click", () => {
+    paused = true; C.paused = true; handsFree = false;
+    C.draft = [$("#typeIn", root).value, finals, interim].filter(Boolean).join(" ").slice(0, 2000);
+    $("#typeIn", root).value = C.draft; finals = ""; interim = "";
+    stopListening(); tts.stop(); save(); coachControls();
+  });
+  $("#resumePractice", root).addEventListener("click", () => {
+    paused = false; C.paused = false; save(); coachControls(); $("#typeIn", root).focus();
+  });
+  $("#resetPractice", root).addEventListener("click", () => {
+    if (!confirm("Reset this coaching session? Its conversation and unsent draft will be cleared. Your pitch reports will stay saved.")) return;
+    S.coach = null; save(); router();
+  });
   bindLang(root, () => { if (mic.on) { mic.stop(); startListening(); } });
   const onKey = (e) => {
     if (e.code !== "Space" || e.repeat || $("#overlay").children.length) return;
@@ -519,6 +565,7 @@ function coachView(root) {
 
   // first render + empty state
   renderMsgs(); renderChecklist(); setStatus("idle");
+  coachControls();
   if (!C.history.length) {
     C.history.push({ role: "coach", text: COACH_OPENER }); save(); renderMsgs(); track("coach_start");
     setTimeout(() => speakCoach(COACH_OPENER), 250);
@@ -554,23 +601,32 @@ const newShow = (stage, phase) => ({ stage, phase, pending: null });
 
 // ======================= SCREEN 6: SHOWTIME ROOM =======================
 function showtimeView(root) {
+  S.lastPractice = "pitch";
   const stage = stageById(S.stage); if (!stage) return go("/stage");
   if (!S.show || S.show.stage !== stage.id) S.show = newShow(stage.id, "ready");
   const sh = S.show;
   if (sh.phase === "judging" && sh.pending) return judgingView(root, stage, sh.pending);
   if (sh.phase === "short") return tooShortView(root, stage);
   const startNow = sh.phase === "countdown";
-  sh.phase = "ready"; save();
+  const restored = sh.phase === "paused" || sh.phase === "live";
+  sh.phase = restored ? "paused" : "ready"; save();
 
-  let alive = true, phase = "ready", t0 = 0, timerInt = null, interim = "", muted = false;
-  const segs = [];
-  onLeave(() => { alive = false; clearInterval(timerInt); mic.stop(); closeOverlay(); });
+  let alive = true, phase = restored ? "paused" : "ready", t0 = 0, timerInt = null, interim = "", muted = false;
+  let elapsedMs = Math.min(PITCH_SECONDS * 1000, Math.max(0, Number(sh.elapsedMs) || 0)), checkpoint = 0;
+  const segs = Array.isArray(sh.segs) ? sh.segs : [];
+  onLeave(() => { if (phase === "live" || phase === "paused") persistPitch(); alive = false; clearInterval(timerInt); mic.stop(); closeOverlay(); });
 
   root.innerHTML = `
+  <div class="practice-toolbar" aria-label="Practice controls">
+    <p id="practiceStatus" role="status">${restored ? "Saved pitch restored. Resume when you’re ready." : "Stop pauses the timer without submitting your pitch."}</p>
+    <button class="btn sm" id="stopPractice" disabled>Stop</button>
+    <button class="btn sm primary" id="resumePractice" ${restored ? "" : "disabled"}>Resume</button>
+    <button class="btn sm" id="resetPractice">Reset</button>
+  </div>
   <div class="room show-room">
     <section class="stage-show">
       <div class="row"><span class="pill accent">🎤 Showtime · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
-      <div class="timer" id="timer" role="timer" aria-live="off">2:00</div>
+      <div class="timer" id="timer" role="timer" aria-live="off">${fmt(Math.ceil(PITCH_SECONDS - elapsedMs / 1000))}</div>
       <div class="meera-zone">
         <div class="avatar meera xl" id="meera">MK</div>
         <div class="meera-name">Meera Kapoor <span class="ai-label">AI investor</span></div>
@@ -596,7 +652,7 @@ function showtimeView(root) {
         <summary>${icon("keyboard", 18)} Type instead ${icon("chevronDown", 18)}</summary>
         <p class="small muted" style="margin:10px 0">The timer still runs while you type.</p>
         ${S.demo ? `<span class="pill accent" style="margin-bottom:10px">Demo transcript loaded (sample)</span>` : ""}
-        <textarea class="field" id="typedTx" placeholder="Type your pitch here…" maxlength="5000">${S.demo ? esc(DEMO_PITCH) : ""}</textarea>
+        <textarea class="field" id="typedTx" placeholder="Type your pitch here…" maxlength="5000" ${restored ? "disabled" : ""}>${esc(sh.typedDraft || (S.demo ? DEMO_PITCH : ""))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn primary" id="submitTyped" disabled>${icon("send", 15)} Submit</button>
           <span class="small muted" id="typedHint">Starts with the timer.</span></div>
       </details>
@@ -605,7 +661,11 @@ function showtimeView(root) {
 
   const timerEl = $("#timer", root), meera = $("#meera", root), lt = $("#lt", root), micBtn = $("#mic", root), endBtn = $("#endBtn", root), caption = $("#caption", root);
   const mic = new Mic({
-    onFinal: (seg) => { segs.push(seg); interim = ""; renderTx(); react(seg.text); },
+    onFinal: (seg) => {
+      if (phase !== "live") return;
+      segs.push({ ...seg, start: elapsedMs + Math.max(0, seg.start - t0), end: elapsedMs + Math.max(0, seg.end - t0) });
+      interim = ""; renderTx(); react(seg.text); persistPitch();
+    },
     onInterim: (t) => { interim = t; renderTx(); },
     onLevel: (l) => micBtn.style.setProperty("--level", l.toFixed(3)),
     onError: (err) => {
@@ -632,7 +692,7 @@ function showtimeView(root) {
     $("#reactions", root)?.append(c); setTimeout(() => c.remove(), 2700);
   }
   async function startMic() {
-    if (!SR) return;
+    if (!SR || phase !== "live") return;
     muted = false; micBtn.classList.remove("off"); micBtn.classList.add("on"); micBtn.setAttribute("aria-label", "Mute microphone");
     try { await mic.start(S.micLang); } catch (e) { mic.o.onError(e.message); }
   }
@@ -642,10 +702,38 @@ function showtimeView(root) {
     else { startMic(); setMeera("listening", "Listening"); }
   }
   function tick() {
-    const left = PITCH_SECONDS - (Date.now() - t0) / 1000;
+    const left = PITCH_SECONDS - (elapsedMs + Date.now() - t0) / 1000;
     timerEl.textContent = fmt(Math.ceil(left));
     timerEl.className = `timer ${left <= 10 ? "red" : left <= 30 ? "amber" : ""}`;
     if (left <= 0) end("timeout");
+    else if (Date.now() - checkpoint > 1000) { checkpoint = Date.now(); persistPitch(); }
+  }
+  function persistPitch() {
+    sh.elapsedMs = Math.min(PITCH_SECONDS * 1000, elapsedMs + (phase === "live" ? Date.now() - t0 : 0));
+    sh.segs = segs;
+    sh.typedDraft = $("#typedTx", root)?.value || "";
+    sh.phase = "paused"; // A reload always requires a deliberate Resume gesture.
+    save();
+  }
+  function pausePitch() {
+    if (phase !== "live") return;
+    if (interim.trim()) segs.push({ text: interim.trim(), start: elapsedMs + Date.now() - t0, end: elapsedMs + Date.now() - t0 });
+    elapsedMs += Date.now() - t0; phase = "paused"; interim = "";
+    clearInterval(timerInt); mic.stop(); tts.stop(); persistPitch(); renderTx();
+    $("#stopPractice", root).disabled = true; $("#resumePractice", root).disabled = false;
+    endBtn.disabled = true; micBtn.disabled = true; $("#submitTyped", root).disabled = true; $("#typedTx", root).disabled = true;
+    setMeera("", "Stopped · progress saved");
+    $("#practiceStatus", root).textContent = "Stopped. Time, spoken words and typed draft are saved in this tab.";
+  }
+  function runClock() {
+    phase = "live"; t0 = Date.now(); timerInt = setInterval(tick, 200);
+    $("#stopPractice", root).disabled = false; $("#resumePractice", root).disabled = true;
+    $("#typedTx", root).disabled = false; endBtn.disabled = false; micBtn.disabled = !SR; $("#submitTyped", root).disabled = false;
+    $("#practiceStatus", root).textContent = "Practice in progress. Stop pauses the timer; End pitch submits for feedback.";
+    setMeera("listening", SR ? "Listening" : "Ready for your typed pitch");
+    renderTx(); tick();
+    if (phase !== "live") return;
+    if (SR) startMic(); else $("#typedTx", root).focus();
   }
   async function begin() {
     if (!alive) return;
@@ -659,11 +747,9 @@ function showtimeView(root) {
     phase = "intro"; setMeera("speaking", "Speaking"); caption.textContent = `"${MEERA_INTRO}"`;
     await tts.speak(MEERA_INTRO, "meera"); if (!alive) return;
     caption.textContent = "";
-    phase = "live"; t0 = Date.now(); timerInt = setInterval(tick, 200); tick();
-    setMeera("listening", "Listening"); endBtn.disabled = false; micBtn.disabled = !SR; $("#submitTyped", root).disabled = false;
+    elapsedMs = 0; runClock();
     $("#typedHint", root).textContent = "Submit ends your pitch.";
     renderTx(); track("showtime_start");
-    if (SR) startMic(); else $("#typedTx", root).focus();
   }
   function end(reason) {
     if (phase !== "live") return;
@@ -674,7 +760,7 @@ function showtimeView(root) {
     const typedUsed = reason === "typed" || (!spoken && typedRaw);
     const transcript = [spoken, typedUsed ? typedRaw : ""].filter(Boolean).join(" ").trim();
     const isDemo = S.demo && typedUsed && typedRaw === DEMO_PITCH.trim() && !spoken;
-    let durationSec = Math.max(1, Math.round((tEnd - t0) / 1000));
+    let durationSec = Math.max(1, Math.round((elapsedMs + tEnd - t0) / 1000));
     if (isDemo) durationSec = Math.round(wordCount(DEMO_PITCH) / 140 * 60); // sample pitch: pace estimated at a natural 140 wpm
     let longPauses = 0, longest = 0;
     for (let i = 1; i < segs.length; i++) { const gap = (segs[i].start - segs[i - 1].end) / 1000; if (gap > 2.5) longPauses++; longest = Math.max(longest, gap); }
@@ -686,6 +772,16 @@ function showtimeView(root) {
   }
 
   endBtn.addEventListener("click", () => end("end"));
+  $("#stopPractice", root).addEventListener("click", pausePitch);
+  $("#resumePractice", root).addEventListener("click", runClock);
+  $("#resetPractice", root).addEventListener("click", () => {
+    if (!confirm("Reset this pitch? Its timer, spoken words and typed draft will be cleared. Saved reports will not be deleted.")) return;
+    S.show = newShow(stage.id, "ready"); save(); router();
+  });
+  $("#typedTx", root).addEventListener("input", () => { if (phase === "live" || phase === "paused") persistPitch(); });
+  const hidePitch = () => { if (document.hidden) pausePitch(); };
+  document.addEventListener("visibilitychange", hidePitch);
+  onLeave(() => document.removeEventListener("visibilitychange", hidePitch));
   micBtn.addEventListener("click", toggleMute);
   $("#submitTyped", root).addEventListener("click", () => { if (!$("#typedTx", root).value.trim()) return toast("Type your pitch first."); end("typed"); });
   $("#ckToggle", root).addEventListener("click", (e) => {
@@ -701,7 +797,9 @@ function showtimeView(root) {
   };
   document.addEventListener("keydown", onKey); onLeave(() => document.removeEventListener("keydown", onKey));
 
-  if (startNow) begin();
+  renderTx();
+  if (restored) { setMeera("", "Stopped · progress saved"); }
+  else if (startNow) begin();
   else {
     // Arrived by refresh or link: need a tap first (browsers require a gesture for mic + speech).
     $("#overlay").innerHTML = `<div class="modal-bg"><div class="modal center" role="dialog" aria-modal="true">
@@ -736,7 +834,7 @@ function judgingView(root, stage, pending) {
   onLeave(() => timers.forEach(clearTimeout));
   (async () => {
     try {
-      const r = await callWithRetry("/api/judge", { stage: stage.id, transcript: pending.transcript, metrics: pending.metrics, sid: SID });
+      const r = await callWithRetry("/api/judge", { stage: stage.id, transcript: pending.transcript, metrics: pending.metrics, demo: !!pending.demo, sid: SID });
       if (!alive) return;
       timers.forEach(clearTimeout); k = steps.length; adv();
       S.report = { ...r, stage: stage.id, transcript: pending.transcript, demo: !!pending.demo, spoken: false, at: Date.now() };
@@ -852,6 +950,11 @@ function reportView(root) {
   $("#retryShow", root).addEventListener("click", () => { S.stage = R.stage; S.show = newShow(R.stage, "countdown"); save(); track("retry"); go("/showtime"); });
   $("#toCoach", root).addEventListener("click", () => { S.stage = R.stage; save(); go("/coach"); });
   $("#toStage", root).addEventListener("click", () => go("/stage"));
+  const scoreSection = document.createElement("section");
+  scoreSection.className = "card sec saved-score-panel";
+  scoreSection.innerHTML = '<h3>Your leaderboard score</h3>';
+  $(".sticky-bar", root).before(scoreSection);
+  mountPublishPanel(scoreSection, R, { api, esc });
   $("#copyRw", root).addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(R.rewrite); toast("Copied"); }
     catch { const t = document.createElement("textarea"); t.value = R.rewrite; document.body.append(t); t.select(); try { document.execCommand("copy"); toast("Copied"); } catch { toast("Couldn't copy. Select the text instead.", "err"); } t.remove(); }
@@ -906,7 +1009,8 @@ async function statsView(root) {
   load(); const t = setInterval(load, 5000); onLeave(() => clearInterval(t));
 }
 
-const ROUTES = { "/": home, "/stage": stageView, "/mode": modeView, "/coach": coachView, "/briefing": briefingView, "/showtime": showtimeView, "/report": reportView, "/stats": statsView };
+const leaderboardView = root => renderLeaderboard(root, { api, esc, stages: STAGES, onLeave });
+const ROUTES = { "/": home, "/stage": stageView, "/mode": modeView, "/coach": coachView, "/briefing": briefingView, "/showtime": showtimeView, "/report": reportView, "/stats": statsView, "/leaderboard": leaderboardView };
 
 // ---------- boot ----------
 const params = new URLSearchParams(location.search);
@@ -918,4 +1022,7 @@ try { if (!sessionStorage.getItem("sayso.visit")) { sessionStorage.setItem("says
 const HEALTH = api("/api/health").catch(() => ({}));
 HEALTH.then(h => { HEALTH_V = h || {}; TTS_MODE = h.tts || "browser"; if (!h.ai) { const p = $("#modePill"); p.hidden = false; p.textContent = "Offline mode"; p.title = "No AI key on the server: simple keyword rules are used."; } }).catch(() => {});
 window.addEventListener("hashchange", router);
+document.addEventListener("clarity:signout", () => {
+  S.coach = null; S.show = null; S.report = null; save(); go("/");
+});
 router();

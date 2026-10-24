@@ -105,3 +105,81 @@ test("legacy stage and mode links still work, and future scenarios are not dead-
   await page.getByRole("link", { name: "Clarity AI home" }).click();
   await expect(page.getByRole("heading", { name: /Speak confidently/ })).toBeVisible();
 });
+
+async function prepareSavedPractice(page, baseURL, state) {
+  await page.route("**/*", route => new URL(route.request().url()).origin === new URL(baseURL).origin ? route.continue() : route.abort());
+  await page.addInitScript(initial => {
+    for (const key of ["SpeechRecognition", "webkitSpeechRecognition", "speechSynthesis"]) {
+      Object.defineProperty(window, key, { configurable: true, value: undefined });
+    }
+    if (!sessionStorage.getItem("sayso.v1")) sessionStorage.setItem("sayso.v1", JSON.stringify(initial));
+  }, state);
+}
+
+test("Stop freezes pitch time, reload restores its draft, Resume continues, Reset confirms", async ({ page, baseURL }) => {
+  await prepareSavedPractice(page, baseURL, { stage: "seed", micLang: "en-IN", show: { stage: "seed", phase: "countdown" } });
+  let submissions = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/judge")) submissions++; });
+  await page.goto("/#/showtime");
+  await expect(page.locator("#stopPractice")).toBeEnabled();
+  await page.locator("#typedTx").fill("My saved draft should survive stopping and reloading.");
+  await page.waitForTimeout(1100);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  const stopped = await page.locator("#timer").innerText();
+  await page.waitForTimeout(1100);
+  await expect(page.locator("#timer")).toHaveText(stopped);
+  await expect(page.locator("#submitTyped")).toBeDisabled();
+  await page.reload();
+  await expect(page.locator("#timer")).toHaveText(stopped);
+  await expect(page.locator("#typedTx")).toHaveValue("My saved draft should survive stopping and reloading.");
+  await expect(page.locator("#resumePractice")).toBeEnabled();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.locator("#submitTyped")).toBeEnabled();
+  await page.waitForTimeout(1100);
+  expect(await page.locator("#timer").innerText()).not.toBe(stopped);
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.locator("#typedTx")).not.toBeEmpty();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.locator("#timer")).toHaveText("2:00");
+  await expect(page.locator("#typedTx")).toBeEmpty();
+  expect(submissions).toBe(0);
+});
+
+test("coaching Stop and Resume preserve a draft; Reset clears it only after confirmation", async ({ page, baseURL }) => {
+  await prepareSavedPractice(page, baseURL, { stage: "seed", micLang: "en-IN" });
+  await page.goto("/#/coach");
+  await page.getByRole("textbox", { name: "Type instead" }).fill("Keep my unfinished idea.");
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Type instead" })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Type instead" })).toHaveValue("Keep my unfinished idea.");
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Type instead" })).toBeEnabled();
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Type instead" })).toHaveValue("Keep my unfinished idea.");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Type instead" })).toBeEmpty();
+  await page.getByRole("link", { name: "Clarity AI home" }).click();
+  await expect(page.getByRole("button", { name: "Resume practice" })).toBeVisible();
+});
+
+test("leaderboard filters show honest empty states and guest scores cannot be published", async ({ page, baseURL }) => {
+  await prepareSavedPractice(page, baseURL, {});
+  const filters = [];
+  await page.route("**/api/leaderboard?*", route => {
+    filters.push(new URL(route.request().url()).searchParams.toString());
+    return route.fulfill({ json: { entries: [] } });
+  });
+  await page.goto("/#/leaderboard");
+  await expect(page.getByRole("heading", { name: "No published scores yet." })).toBeVisible();
+  await page.locator("#leaderStage").selectOption("seed");
+  await page.getByRole("button", { name: "Typed pitches", exact: true }).click();
+  await expect.poll(() => filters.at(-1)).toBe("stage=seed&input=typed");
+  await expect(page.locator("#myScores")).toContainText("Publishing is optional");
+  const response = await page.request.post("/api/leaderboard/publish", { headers: { "x-test-user": "pretend" }, data: { score: 100, displayName: "Forged" } });
+  expect(response.status()).toBe(401);
+});

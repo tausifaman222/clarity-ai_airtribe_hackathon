@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/clarity-theme.css">
   <link rel="stylesheet" href="/home.css">
+  <link rel="stylesheet" href="/community.css">
 </head>
 <body>
   <header class="topbar">
@@ -23,12 +24,16 @@
       <a class="logo" href="#/" aria-label="Clarity AI home"><span class="logo-mark"></span>Clarity AI</a>
       <nav class="stepper" id="stepper" aria-label="Progress"></nav>
       <span class="mode-pill" id="modePill" hidden></span>
+      <a class="community-link small" href="#/leaderboard">Leaderboard</a>
+      <div data-auth-controls></div>
     </div>
   </header>
   <main id="view" class="wrap" tabindex="-1"></main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="overlay"></div>
+  <div id="auth-root"></div>
   <noscript><p style="padding:24px">Clarity AI needs JavaScript to run.</p></noscript>
   <script type="module" src="/app.js"></script>
+  <script type="module" src="/auth.bundle.js"></script>
 </body>
 </html>

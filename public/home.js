@@ -19,6 +19,11 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
           </a>
           <div class="cr-header-note">${icon("messageCircle", 17)}<span>A little practice. A lot more you.</span></div>
         </header>
+        <nav class="cr-product-nav" aria-label="Account and community">
+          <a href="#/leaderboard">Leaderboard</a><div data-auth-controls></div>
+        </nav>
+        <section class="member-welcome"><h1>Your practice space</h1><p>Build confidence, one conversation at a time.</p></section>
+        <div id="savedPractice"></div>
         <div class="cr-offline-note" hidden role="status">
           <span class="mode-pill">Offline mode</span>
           <span>Practice is available, but feedback uses keyword rules rather than AI.</span>
@@ -92,6 +97,12 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
     </div>`;
 
   const flow = root.querySelector("#cr-setup");
+  const savedPitch = state.show?.phase === "paused";
+  const savedCoach = state.coach?.paused;
+  const resumeKind = state.lastPractice === "coach" && savedCoach ? "coach" : savedPitch ? "pitch" : savedCoach ? "coach" : null;
+  if (resumeKind) {
+    root.querySelector("#savedPractice").innerHTML = `<aside class="cr-resume"><div><strong>Your practice is saved.</strong><p>Continue your ${resumeKind === "pitch" ? "pitch, with its timer and draft" : "coaching conversation"}. Saved in this tab.</p></div><button class="cr-step-continue" type="button" data-action="restore">Resume practice</button></aside>`;
+  }
   const stageName = () => stages.find(item => item.id === stage).name;
   const remember = () => {
     state.stage = stage;
@@ -184,7 +195,14 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
       mode = button.dataset.mode;
       remember();
       flow.querySelectorAll("[data-mode]").forEach(item => item.setAttribute("aria-pressed", String(item.dataset.mode === mode)));
+    } else if (button.dataset.action === "restore") {
+      state.stage = resumeKind === "pitch" ? state.show.stage : state.coach.stage;
+      save(); navigate(resumeKind === "pitch" ? "/showtime" : "/coach");
     } else if (button.dataset.action === "launch") {
+      if (mode === "pitch" && savedPitch) {
+        if (!confirm("Start a new pitch and clear the saved pitch draft and timer? Choose Resume practice instead to keep going.")) return;
+        state.show = null;
+      }
       remember();
       state.demo = false;
       save();

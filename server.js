@@ -4,14 +4,34 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { aiStatus, callLLMJson } from "./llm.js";
-import { STAGES, stageById, checklistText, FILLERS, HEDGES, countPhrases, sum, wordCount } from "./public/rubrics.js";
+import { STAGES, stageById, checklistText, FILLERS, HEDGES, countPhrases, sum, wordCount, DEMO_PITCH } from "./public/rubrics.js";
 import { offlineCoach, offlineVerdict, offlineJudge } from "./offline.js";
+import { clerkMiddleware } from "@clerk/express";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
+import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./server/clerk-proxy.js";
+import { registerCommunity, saveVerifiedAttempt, database, userIdOf } from "./server/community.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", true);
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use(express.json({ limit: "200kb" }));
+if (process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY) {
+  app.use(clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })));
+}
+app.get("/auth.bundle.js", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const configured = process.env.CLERK_SECRET_KEY && process.env.CLERK_PUBLISHABLE_KEY;
+  res.sendFile(path.join(__dirname, configured ? "generated-artifacts/auth/auth.bundle.js" : "public/auth-unavailable.js"));
+});
+app.get(["/sign-in", "/sign-in/*", "/sign-up", "/sign-up/*"], (req, res) => res.sendFile(path.join(__dirname, "public/auth.html")));
+registerCommunity(app);
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -301,7 +321,10 @@ app.post("/api/judge", rateLimit, async (req, res) => {
     const out = await callLLMJson(judgeSystem(stage), user, { maxTokens: 3000, timeoutMs: 45000 });
     const report = normReport(stage, out, metrics);
     if (!report.investorReaction || !report.rewrite) throw new Error("Incomplete report");
-    res.json(await withEvaluation(stage, report, evalRun));
+    const evaluated = await withEvaluation(stage, report, evalRun);
+    const isDemo = req.body?.demo === true || transcript.trim() === DEMO_PITCH.trim();
+    res.json(isDemo ? { ...evaluated, leaderboardStatus: "demo_excluded" } :
+      await saveVerifiedAttempt(database, userIdOf(req), evaluated, stage.id, metrics.typed ? "typed" : "spoken"));
   } catch (e) { console.error("judge:", e.message); fail(res, 502, "Judge unavailable"); }
 });
 

@@ -25,7 +25,7 @@ async function stop(code = 0) {
 process.on("SIGTERM", () => void stop());
 process.on("SIGINT", () => void stop());
 try {
-  for (const file of ["server.js", "llm.js", "offline.js", "public", "package.json"]) {
+  for (const file of ["server.js", "server", "llm.js", "offline.js", "public", "package.json"]) {
     await cp(path.join(root, file), path.join(directory, file), { recursive: true });
   }
   await symlink(path.join(root, "node_modules"), path.join(directory, "node_modules"), "dir");
