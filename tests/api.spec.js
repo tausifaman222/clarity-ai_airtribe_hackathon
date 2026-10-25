@@ -6,7 +6,7 @@ test("health is explicitly offline without provider keys", async ({ request }) =
   const response = await request.get("/api/health");
   expect(response.status()).toBe(200);
   expect(await response.json()).toEqual({
-    ok: true, ai: false, mode: "offline", model: null,
+    ok: true, ai: false, mode: "offline", model: null, fallback: null,
     problem: "No LLM_API_KEY set", tts: "browser", stt: "browser", evaluator: false, google: false, accounts: false,
   });
 });
