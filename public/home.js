@@ -1,6 +1,7 @@
 // The approved Clarity AI mockup, adapted to the existing plain-JavaScript app.
+import { SCENARIOS, scenarioById } from "./scenarios.js";
 // Setup uses local state; provider calls begin only in the existing practice rooms.
-export function renderHome(root, { icon, stages, state, save, navigate, health, onLeave }) {
+export function renderHome(root, { icon, stages, state, save, navigate, health, onLeave, langs = [], toast = () => {} }) {
   const languages = ["English", "हिंदी", "Hinglish"];
   let language = languages.includes(state.practiceLanguage)
     ? state.practiceLanguage : state.micLang === "hi-IN" ? "हिंदी" : "English";
@@ -77,20 +78,30 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
           </div>
           <div id="cr-setup" class="cr-flow" hidden></div>
         </section>
-        <section class="cr-future" aria-labelledby="cr-future-title">
-          <div><p class="cr-section-kicker">The same confidence, everywhere</p>
-            <h2 class="cr-future-title" id="cr-future-title">More ways to practise, coming later.</h2>
-            <p class="cr-future-copy">The goal is confidence in any conversation. Startup pitching is our first use case; these other scenarios are not available yet.</p>
+        <section class="cr-anything" aria-labelledby="cr-any-title">
+          <div class="cr-practice-intro">
+            <div><p class="cr-section-kicker">Practise anything</p><h2 class="cr-section-title" id="cr-any-title">What are you preparing for?</h2></div>
+            <p>Describe it in your own words, in any language. The AI works out your situation and builds the practice: what to cover, a practice partner, and coaching that fits.</p>
           </div>
-          <div class="cr-future-list" aria-label="Future practice situations">
-            <span class="cr-future-item">${icon("messageCircle", 15)} Salary conversation <small>Coming later</small></span>
-            <span class="cr-future-item">${icon("presentation", 15)} A presentation <small>Coming later</small></span>
-            <span class="cr-future-item">${icon("mic", 15)} Any big conversation <small>Coming later</small></span>
+          <form class="cr-any-form" id="anyForm">
+            <label class="sr" for="anyText">Describe what you're preparing for</label>
+            <textarea id="anyText" class="field" rows="3" maxlength="1200" placeholder="e.g. Product manager interview at a fintech next Tuesday. Or: asking my manager for a 20% raise. Or: best man's speech at my brother's wedding."></textarea>
+            <div class="cr-any-row">
+              <label class="lang-select">🌐 <select id="anyLang" aria-label="Practice language">${langs.map(([code, name]) => `<option value="${code}" ${code === (state.micLang || "en-IN") ? "selected" : ""}>${name}</option>`).join("")}</select></label>
+              <button class="cr-primary-start" type="submit" id="anyGo">Build my practice ${icon("arrowRight", 18)}</button>
+            </div>
+          </form>
+          <p class="cr-section-kicker" style="margin-top:22px">Or start from a template</p>
+          <div class="cr-templates">
+            ${SCENARIOS.map(s => `<button type="button" class="cr-template" data-template="${s.id}"><span class="cr-template-emoji" aria-hidden="true">${s.emoji}</span><b>${s.name}</b><small>${s.blurb}</small></button>`).join("")}
+            <button type="button" class="cr-template" data-action="open"><span class="cr-template-emoji" aria-hidden="true">🚀</span><b>Startup pitch</b><small>Stage-specific investor practice.</small></button>
           </div>
         </section>
         <footer class="cr-footer">
           <span class="cr-footer-brand">${icon("audioLines", 15)} Clarity AI</span>
-          <span class="cr-footer-principle"><strong>Your ideas first.</strong> Speak in English, हिंदी, or Hinglish.</span>
+          <span class="cr-footer-principle"><strong>Your ideas first.</strong> Practise in 16 languages, including English, हिंदी and Hinglish.</span>
+          <span class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by Ashish &amp; Tausif</span>
+          <span class="cr-footer-links"><a href="#/progress">Progress</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
         </footer>
       </div>
     </div>`;
@@ -104,7 +115,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
   }
   const stageName = () => stages.find(item => item.id === stage).name;
   const remember = () => {
-    state.stage = stage;
+    state.stage = stage; state.scenario = null;
     state.practiceMode = "warmup-interview";
     state.practiceLanguage = language;
     state.micLang = language === "हिंदी" ? "hi-IN" : "en-IN";
@@ -166,9 +177,32 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
     if (focus) moveFocus();
   }
 
+  const anyForm = root.querySelector("#anyForm");
+  root.querySelector("#anyLang").addEventListener("change", e => { state.micLang = e.target.value; save(); });
+  anyForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const description = root.querySelector("#anyText").value.trim();
+    if (description.split(/\s+/).length < 2) { toast("Tell us a little more: who you'll speak to and why."); return; }
+    const go = root.querySelector("#anyGo"); go.disabled = true; go.textContent = "Understanding your situation…";
+    try {
+      const res = await fetch("/api/scenario", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ description, lang: state.micLang, sid: localStorage.getItem("sayso.sid") || undefined }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't build that practice.");
+      if (data.kind === "pitch") { state.stage = data.stage || "idea"; state.scenario = null; save(); navigate("/mode"); return; }
+      state.scenario = { ...data.scenario, description }; state.stage = "custom"; state.coach = null; state.show = null; save();
+      if (data.fallback || data.offline) toast("We matched your description to our closest template. You can edit it.");
+      navigate("/scenario");
+    } catch (e) { toast(e.message, "err"); go.disabled = false; go.innerHTML = `Build my practice ${icon("arrowRight", 18)}`; }
+  });
+
   const click = event => {
     const button = event.target.closest("button");
     if (!button || !root.contains(button)) return;
+    if (button.dataset.template) {
+      state.scenario = JSON.parse(JSON.stringify(scenarioById(button.dataset.template)));
+      state.stage = "custom"; state.coach = null; state.show = null; save(); navigate("/scenario"); return;
+    }
     if (button.dataset.language) {
       language = button.dataset.language;
       remember();

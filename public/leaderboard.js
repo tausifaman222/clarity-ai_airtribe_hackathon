@@ -10,7 +10,7 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
         <button type="button" data-input="typed" aria-pressed="false">Typed pitches</button>
       </div>
     </div>
-    <p class="small muted" style="margin:16px 0">Scores are out of 100 and reflect an AI review of one explanation—not business potential. Ties share a rank. Offline feedback and sample demo pitches are not ranked. Google sign-in is coming soon.</p>
+    <p class="small muted" style="margin:16px 0">Scores are out of 100 and reflect an AI review of one explanation—not business potential. Ties share a rank. Offline feedback and sample demo pitches are not ranked.</p>
     <div class="card" id="rankings" aria-live="polite"></div>
     <section class="card sec" id="myScores"><h2>Your saved scores</h2><p class="muted">Checking your account…</p></section>`;
   const load = async () => {
@@ -67,7 +67,7 @@ export function renderLeaderboard(root, { api, esc, stages, onLeave }) {
     } catch (error) {
       if (!alive || version !== accountRevision) return;
       container.innerHTML = error.status === 401
-        ? '<h2>Your saved scores</h2><p>Sign in or create a username and password to save scores privately. Publishing is optional; Google sign-in is coming soon.</p><div class="actions" style="margin-top:16px"><a class="btn" href="/sign-in">Sign in</a><a class="btn primary" href="/sign-up">Create account</a></div>'
+        ? '<h2>Your saved scores</h2><p>Sign in or create a username and password to save scores privately. Publishing is optional;</p><div class="actions" style="margin-top:16px"><a class="btn" href="/sign-in">Sign in</a><a class="btn primary" href="/sign-up">Create account</a></div>'
         : `<h2>Your saved scores</h2><p role="alert">${esc(error.message)}</p>`;
     }
   };

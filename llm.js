@@ -1,12 +1,23 @@
 // Provider-agnostic LLM calls over fetch (Node 18+). No SDK. Key stays server-side.
 // Env:
 //   LLM_API_KEY   (required for AI; ANTHROPIC_API_KEY / OPENAI_API_KEY / XAI_API_KEY also accepted)
-//   LLM_PROVIDER  anthropic (default) | openai   (openai = any OpenAI-compatible API: OpenAI, xAI Grok, Groq, OpenRouter...)
+//   LLM_PROVIDER  groq | gemini | openrouter (presets) | anthropic (default) | openai (any OpenAI-compatible API)
 //   LLM_MODEL     default claude-sonnet-5-5 for Anthropic; required for openai-compatible providers
 //   LLM_BASE_URL  for openai-compatible providers, e.g. https://api.x.ai/v1 (default https://api.openai.com/v1)
 const env = (k) => (process.env[k] || "").trim();
 
+// One-word presets for open-model and free-tier providers.
+const PRESETS = {
+  groq: { baseUrl: "https://api.groq.com/openai/v1", model: "openai/gpt-oss-120b", keyEnv: "GROQ_API_KEY" },
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash", keyEnv: "GEMINI_API_KEY" },
+  openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "", keyEnv: "OPENROUTER_API_KEY" },
+};
 function config() {
+  const preset = PRESETS[env("LLM_PROVIDER").toLowerCase()];
+  if (preset) {
+    return { key: env("LLM_API_KEY") || env(preset.keyEnv), provider: "openai",
+      baseUrl: (env("LLM_BASE_URL") || preset.baseUrl).replace(/\/+$/, ""), model: env("LLM_MODEL") || preset.model };
+  }
   const key = env("LLM_API_KEY") || env("ANTHROPIC_API_KEY") || env("OPENAI_API_KEY") || env("XAI_API_KEY");
   let provider = env("LLM_PROVIDER").toLowerCase();
   let baseUrl = env("LLM_BASE_URL").replace(/\/+$/, "");

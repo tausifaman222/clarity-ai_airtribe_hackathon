@@ -1,0 +1,7 @@
+node_modules
+.git
+.env*
+generated-artifacts
+tests
+data
+.vercel

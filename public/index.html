@@ -4,10 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Clarity AI · Speak confidently. Be understood.</title>
-  <meta name="description" content="Practise speaking confidently and expressing your ideas clearly with Clarity AI. Startup pitching is the first practice scenario, in English, Hindi or Hinglish.">
+  <meta name="description" content="Clarity AI helps you rehearse any high-stakes conversation out loud: interviews, negotiations, presentations, pitches and speeches. Voice and camera feedback on what you say and how you say it, in 16 languages.">
+  <link rel="canonical" href="/">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/og.png">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#f7f4eb">
   <meta property="og:title" content="Clarity AI · Speak confidently. Be understood.">
-  <meta property="og:description" content="Your ideas first. Rehearse what you want to say, with feedback about your idea and delivery—not your grammar or accent.">
+  <meta property="og:description" content="Rehearse any big conversation with an AI coach. Feedback on your ideas and delivery, not your grammar or accent.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2317645a'/%3E%3Cpath d='M6 14v4M10 10v12M14 6v20M18 12v8M22 9v14M26 14v4' stroke='%23fffdf7' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,16 +29,18 @@
       <a class="logo" href="#/" aria-label="Clarity AI home"><span class="logo-mark"></span>Clarity AI</a>
       <nav class="stepper" id="stepper" aria-label="Progress"></nav>
       <span class="mode-pill" id="modePill" hidden></span>
+      <a class="community-link small" href="#/progress">Progress</a>
       <a class="community-link small" href="#/leaderboard">Leaderboard</a>
       <div data-auth-controls></div>
     </div>
   </header>
   <main id="view" class="wrap" tabindex="-1"></main>
+  <footer class="site-footer"><p class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by Ashish &amp; Tausif</p><p class="small"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p></footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="overlay"></div>
   <div id="auth-root"></div>
   <noscript><p style="padding:24px">Clarity AI needs JavaScript to run.</p></noscript>
   <script type="module" src="/app.js"></script>
-  <script type="module" src="/auth.bundle.js"></script>
+  <script type="module" src="/auth-controls.js"></script>
 </body>
 </html>

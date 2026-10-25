@@ -7,7 +7,7 @@ test("health is explicitly offline without provider keys", async ({ request }) =
   expect(response.status()).toBe(200);
   expect(await response.json()).toEqual({
     ok: true, ai: false, mode: "offline", model: null,
-    problem: "No LLM_API_KEY set", tts: "browser", evaluator: false,
+    problem: "No LLM_API_KEY set", tts: "browser", stt: "browser", evaluator: false, google: false, accounts: false,
   });
 });
 
@@ -76,7 +76,7 @@ for (const endpoint of ["coach", "verdict", "judge"]) {
     for (const stage of ["invalid-stage", undefined]) {
       const response = await request.post(`/api/${endpoint}`, { data: { stage, history, userText: pitch, transcript: pitch } });
       expect(response.status()).toBe(400);
-      expect((await response.json()).error).toContain("Unknown stage.");
+      expect((await response.json()).error).toContain("Unknown practice.");
     }
   });
 }

@@ -71,7 +71,9 @@ async function passwordMatches(password, encoded) {
   return !!match && expected.length === actual.length && timingSafeEqual(actual, expected);
 }
 
-function sessionUser(user) { return user ? { username: user.username } : null; }
+export function sessionUser(user) {
+  return user ? { username: user.username, displayName: user.display_name || null, avatarUrl: user.avatar_url || null, google: !!user.google_sub } : null;
+}
 
 function noStore(res) {
   res.set("Cache-Control", "no-store");
@@ -90,7 +92,7 @@ export function createAccountSessionMiddleware(db) {
     }
     try {
       const { rows } = await db.query(`
-        SELECT u.id, u.username
+        SELECT u.id, u.username, u.display_name, u.avatar_url, u.google_sub
         FROM clarity_auth_sessions s
         JOIN clarity_auth_users u ON u.id = s.user_id
         WHERE s.session_hash = $1 AND s.expires_at > NOW()
@@ -98,6 +100,8 @@ export function createAccountSessionMiddleware(db) {
       if (rows[0]) {
         req.localUserId = `local:${rows[0].id}`;
         req.localUsername = rows[0].username;
+        req.localUser = sessionUser(rows[0]);
+        req.localAccountId = rows[0].id;
       } else {
         await db.query("DELETE FROM clarity_auth_sessions WHERE session_hash = $1 AND expires_at <= NOW()", [sha256(token)]);
       }
@@ -108,6 +112,19 @@ export function createAccountSessionMiddleware(db) {
     }
   };
 }
+
+// Creates a fresh session (rotating any previous one) and sets the HttpOnly cookie.
+export async function createSession(dbConn, userId, req, res) {
+  const token = randomBytes(32).toString("base64url");
+  const previous = cookieToken(req);
+  if (previous) await dbConn.query("DELETE FROM clarity_auth_sessions WHERE session_hash=$1", [sha256(previous)]);
+  await dbConn.query(
+    "INSERT INTO clarity_auth_sessions(session_hash,user_id,expires_at) VALUES($1,$2,$3)",
+    [sha256(token), userId, new Date(Date.now() + SESSION_MS).toISOString()],
+  );
+  writeSessionCookie(req, res, token);
+}
+export { isSameOrigin, noStore, clearSessionCookie, cookieToken, sha256 };
 
 export function registerAccountAuth(app, { db, sessionSecret = process.env.SESSION_SECRET } = {}) {
   const sessionMiddleware = createAccountSessionMiddleware(db);
@@ -167,16 +184,7 @@ export function registerAccountAuth(app, { db, sessionSecret = process.env.SESSI
     return res.status(429).json({ error: "Too many attempts. Wait a little while before trying again." });
   }
 
-  async function newSession(dbConn, userId, res, req) {
-    const token = randomBytes(32).toString("base64url");
-    const previous = cookieToken(req);
-    if (previous) await dbConn.query("DELETE FROM clarity_auth_sessions WHERE session_hash=$1", [sha256(previous)]);
-    await dbConn.query(
-      "INSERT INTO clarity_auth_sessions(session_hash,user_id,expires_at) VALUES($1,$2,$3)",
-      [sha256(token), userId, new Date(Date.now() + SESSION_MS).toISOString()],
-    );
-    writeSessionCookie(req, res, token);
-  }
+  const newSession = (dbConn, userId, res, req) => createSession(dbConn, userId, req, res);
 
   app.post("/api/auth/register", csrf, async (req, res) => {
     noStore(res);
@@ -242,7 +250,7 @@ export function registerAccountAuth(app, { db, sessionSecret = process.env.SESSI
       if (attempt.length) return tooManyAttempts(res, attempt);
       await recordFailure(db, keys);
       const result = await db.query(
-        "SELECT id,username,password_hash FROM clarity_auth_users WHERE username=$1 LIMIT 1",
+        "SELECT id,username,password_hash,display_name,avatar_url,google_sub FROM clarity_auth_users WHERE username=$1 LIMIT 1",
         [username],
       );
       const user = result.rows[0];
@@ -261,7 +269,23 @@ export function registerAccountAuth(app, { db, sessionSecret = process.env.SESSI
 
   app.get("/api/auth/me", sessionMiddleware, (req, res) => {
     noStore(res);
-    res.json({ user: req.localUserId ? { username: req.localUsername } : null });
+    res.json({ user: req.localUserId ? req.localUser : null });
+  });
+
+  // Permanently deletes the signed-in account, its sessions and every saved score.
+  app.delete("/api/me", csrf, sessionMiddleware, async (req, res) => {
+    noStore(res);
+    if (!req.localAccountId) return res.status(401).json({ error: "Sign in first." });
+    if (!db) return unavailable(res);
+    try {
+      await db.query("DELETE FROM clarity_attempts WHERE user_id=$1", [req.localUserId]);
+      await db.query("DELETE FROM clarity_auth_users WHERE id=$1", [req.localAccountId]);
+      clearSessionCookie(req, res);
+      return res.json({ deleted: true });
+    } catch (error) {
+      console.error("Account deletion failed:", error.code || "storage_error");
+      return unavailable(res);
+    }
   });
 
   app.post("/api/auth/logout", csrf, async (req, res) => {

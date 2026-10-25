@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Syntax check
+        run: for f in server.js llm.js offline.js api/index.js scripts/*.js server/*.js public/*.js; do node --check "$f"; done
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: API and browser tests
+        run: npx playwright test
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: generated-artifacts/test-results
+          retention-days: 7

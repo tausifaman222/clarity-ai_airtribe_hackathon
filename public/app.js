@@ -1,5 +1,5 @@
 // Clarity AI practice client: hash-routed SPA with tab-local drafts.
-// Clerk authenticates accounts; verified leaderboard scores are stored server-side.
+// Accounts (username or Google) are first-party sessions; verified scores are stored server-side.
 import { STAGES, stageById, PRO_TIPS, FILLERS, HEDGES, wordCount, DEMO_PITCH } from "./rubrics.js";
 import { icon } from "./icons.js";
 import { renderHome } from "./home.js";
@@ -7,6 +7,9 @@ import { renderLeaderboard, mountPublishPanel } from "./leaderboard.js";
 import { PITCH_SECONDS, FINAL_COUNTDOWN_SECONDS } from "./practice-config.js";
 import { addReportGuidance } from "./pitch-guidance.js";
 import { improvementPlanHTML } from "./report-plan.js";
+import { Recorder, recorderSupported, transcribe, bindDictation } from "./speech.js";
+import { PresenceCoach, cameraSupported } from "./presence.js";
+import { SCENARIOS, scenarioTrack, scenarioById } from "./scenarios.js";
 
 // ---------- utilities ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -20,6 +23,10 @@ const IS_ANDROID = /Android/i.test(navigator.userAgent);
 const COACH_OPENER = "Let's work on your idea together. What are you building, who is it for, and what problem does it solve? It's okay if you're still figuring parts out. Start with what you know.";
 const MEERA_INTRO = "Hi, I'm Meera, your AI practice partner. Tell me what you're building, who it's for, and why it matters. Take your time. You have up to five minutes.";
 const STORE = "sayso.v1";
+// Practice languages for speech recognition and voices. The AI replies in whatever language you use.
+const LANGS = [["en-IN", "English (India) / Hinglish"], ["en-US", "English (US)"], ["en-GB", "English (UK)"], ["hi-IN", "हिंदी"], ["bn-IN", "বাংলা"], ["ta-IN", "தமிழ்"],
+  ["te-IN", "తెలుగు"], ["mr-IN", "मराठी"], ["es-ES", "Español"], ["fr-FR", "Français"], ["de-DE", "Deutsch"], ["pt-BR", "Português (Brasil)"],
+  ["ar-SA", "العربية"], ["id-ID", "Bahasa Indonesia"], ["ja-JP", "日本語"], ["zh-CN", "中文"]];
 
 let SID = "anon";
 try { SID = localStorage.getItem("sayso.sid") || (crypto.randomUUID?.() || String(Math.random()).slice(2) + Date.now()); localStorage.setItem("sayso.sid", SID); } catch {}
@@ -27,6 +34,13 @@ try { SID = localStorage.getItem("sayso.sid") || (crypto.randomUUID?.() || Strin
 const S = { stage: null, micLang: "en-IN", coach: null, show: null, report: null, demo: false };
 try { Object.assign(S, JSON.parse(sessionStorage.getItem(STORE) || "{}")); } catch {}
 function save() { try { sessionStorage.setItem(STORE, JSON.stringify(S)); } catch {} }
+// A practice "track": a startup-pitch stage, or a custom scenario (interview, negotiation, speech, ...).
+const trackOf = (id = S.stage, sc = S.scenario) => (id === "custom" ? scenarioTrack(sc) : stageById(id));
+const personaOf = (t) => (t?.custom ? { ...t.persona, first: /^dr\.?\s/i.test(t.persona.name) ? t.persona.name : String(t.persona.name).split(" ")[0] }
+  : { name: "Meera Kapoor", first: "Meera", initials: "MK", role: "investor", intro: MEERA_INTRO });
+const limitOf = (t) => (t?.custom ? t.timeLimitSec : PITCH_SECONDS);
+const mins = (sec) => (sec % 60 === 0 ? `${sec / 60} minute${sec === 60 ? "" : "s"}` : `${Math.round(sec / 6) / 10} minutes`);
+const tb = (t) => ({ stage: t.id, ...(t.custom ? { scenario: t.scenario } : {}), lang: S.micLang });
 
 function toast(msg, kind = "") {
   const t = $("#toast"); t.textContent = msg; t.className = `toast show ${kind}`;
@@ -97,6 +111,8 @@ const tts = {
   isHindi: (t) => (String(t).match(/[ऀ-ॿ]/g) || []).length > String(t).replace(/\s/g, "").length * 0.5,
   pick(text) {
     const v = this.voices, norm = (l) => (l || "").replace("_", "-").toLowerCase();
+    const want = (S.micLang || "en-IN").toLowerCase(), pre = want.slice(0, 2);
+    if (pre !== "en" && pre !== "hi") return v.find(x => norm(x.lang) === want) || v.find(x => norm(x.lang).startsWith(pre));
     if (this.isHindi(text)) return v.find(x => norm(x.lang) === "hi-in") || v.find(x => norm(x.lang).startsWith("hi"));
     return v.find(x => norm(x.lang) === "en-in") || v.find(x => norm(x.lang) === "en-gb") || v.find(x => norm(x.lang).startsWith("en"));
   },
@@ -196,13 +212,14 @@ class Mic {
 
 // ---------- router, stepper, overlay ----------
 const STEPS = [["Practice", "/"], ["Your stage", "/stage"], ["Practice style", "/mode"], ["Rehearse", null], ["Feedback", null]];
-const STEP_OF = { "/": 0, "/stage": 1, "/mode": 2, "/coach": 3, "/briefing": 3, "/showtime": 3, "/report": 4, "/stats": 0 };
+const STEPS_CUSTOM = [["Practice", "/"], ["Describe", "/"], ["Your plan", "/scenario"], ["Rehearse", null], ["Feedback", null]];
+const STEP_OF = { "/": 0, "/stage": 1, "/mode": 2, "/coach": 3, "/briefing": 3, "/showtime": 3, "/report": 4, "/drill": 4, "/stats": 0, "/progress": 0, "/leaderboard": 0, "/scenario": 2 };
 let cleanups = [];
 const onLeave = (fn) => cleanups.push(fn);
 const go = (p) => { if (location.hash === "#" + p) router(); else location.hash = "#" + p; };
 
 function renderStepper(n) {
-  $("#stepper").innerHTML = STEPS.map(([lbl, href], i) => {
+  $("#stepper").innerHTML = (S.stage === "custom" ? STEPS_CUSTOM : STEPS).map(([lbl, href], i) => {
     const cls = i < n ? "done" : i === n ? "now" : "";
     const inner = `<span class="dot">${i < n ? icon("check", 11) : i + 1}</span><span class="lbl">${lbl}</span>`;
     const line = i ? `<span class="step-line ${i <= n ? "done" : ""}"></span>` : "";
@@ -246,25 +263,29 @@ const tip = (title, bodyHtml, left = false) =>
   `<span class="tipwrap"><button type="button" class="tipbtn" aria-label="${esc(title)}">${icon("info", 16)}</button><span class="pop ${left ? "left" : ""}" role="tooltip"><b>${esc(title)}</b>${bodyHtml}</span></span>`;
 
 function langToggle() {
-  return `<div class="seg" role="group" aria-label="Mic language">
-    <button type="button" data-lang="en-IN" aria-pressed="${S.micLang !== "hi-IN"}">English / Hinglish (en-IN)</button>
-    <button type="button" data-lang="hi-IN" aria-pressed="${S.micLang === "hi-IN"}">हिंदी (hi-IN)</button></div>`;
+  return `<label class="lang-select"><span class="sr">Practice language</span>🌐 <select data-langsel aria-label="Practice language">
+    ${LANGS.map(([code, name]) => `<option value="${code}" ${code === S.micLang ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></label>`;
 }
 function bindLang(root, onChange) {
-  $$(".seg [data-lang]", root).forEach(b => b.addEventListener("click", () => {
-    S.micLang = b.dataset.lang; save();
-    $$(".seg [data-lang]", root).forEach(x => x.setAttribute("aria-pressed", String(x.dataset.lang === S.micLang)));
+  $$("[data-langsel]", root).forEach(sel => sel.addEventListener("change", () => {
+    S.micLang = sel.value; save();
+    $$("[data-langsel]", root).forEach(x => { x.value = S.micLang; });
     onChange?.();
   }));
 }
-const noVoiceBanner = () => SR ? "" : `<div class="banner" role="note">${icon("alert", 16)} Voice works best in Chrome. You can still type your pitch below.</div>`;
+// Live recognition (Chrome, Edge, Android) or record-then-transcribe with open-source Whisper (Safari, Firefox).
+const WHISPER = () => !SR && HEALTH_V.stt === "whisper" && recorderSupported();
+const voiceInput = () => !!SR || WHISPER();
+const noVoiceBanner = () => SR ? "" : WHISPER()
+  ? `<div class="banner" role="note">${icon("info", 16)} Live captions need Chrome. Here, tap the mic and speak; we'll transcribe your recording when you stop.</div>`
+  : `<div class="banner" role="note">${icon("alert", 16)} Voice works best in Chrome. You can still type your pitch below.</div>`;
 const deniedCard = () => `<div class="denied" role="alert"><b>${icon("micOff", 16)} We can't hear you yet: microphone access is blocked.</b>
   <ol><li>Click the lock or site-settings icon at the left of the address bar.</li><li>Set <b style="display:inline">Microphone</b> to Allow.</li><li>Come back here and tap Retry.</li></ol>
   <div class="row"><button class="btn sm primary" data-retry-mic>${icon("retry", 14)} Retry</button><span class="small muted">Or type instead, below.</span></div></div>`;
 
 // ======================= SCREEN 1: HOME =======================
 function home(root) {
-  renderHome(root, { icon, stages: STAGES, state: S, save, navigate: go, health: HEALTH, onLeave });
+  renderHome(root, { icon, stages: STAGES, state: S, save, navigate: go, health: HEALTH, onLeave, langs: LANGS, toast });
 }
 
 // ======================= SCREEN 2: STAGE =======================
@@ -297,7 +318,8 @@ function stageView(root) {
 
 // ======================= SCREEN 3: MODE =======================
 function modeView(root) {
-  const stage = stageById(S.stage); if (!stage) return go("/stage");
+  const stage = trackOf(); if (!stage) return go("/stage");
+  if (stage.custom) return go("/scenario");
   root.innerHTML = `
   <div class="head center"><p class="eyebrow">Your ${esc(stage.name)} practice</p><h2>Warm up, then meet your investor.</h2>
     <p>One clear path. The complete checklist is shown before you begin; the interview itself is uninterrupted.</p></div>
@@ -330,8 +352,9 @@ function checklistHtml(stage, covered = [], focus = null, opts = {}) {
 // ======================= SCREEN 4: COACH ROOM =======================
 function coachView(root) {
   S.lastPractice = "coach";
-  const stage = stageById(S.stage); if (!stage) return go("/stage");
-  if (!S.coach || S.coach.stage !== stage.id) S.coach = { stage: stage.id, history: [], covered: [], nextFocus: null };
+  const stage = trackOf(); if (!stage) return go("/");
+  const coachKey = stage.custom ? `custom:${stage.name}` : stage.id;
+  if (!S.coach || S.coach.stage !== stage.id || (S.coach.key || stage.id) !== coachKey) S.coach = { stage: stage.id, key: coachKey, history: [], covered: [], nextFocus: null };
   const C = S.coach;
   let alive = true, status = "idle", handsFree = false, sending = false, finals = "", interim = "", silence = null;
   let paused = !!C.paused;
@@ -348,10 +371,10 @@ function coachView(root) {
     <button class="btn sm primary" id="resumePractice">Resume</button>
     <button class="btn sm" id="resetPractice">Reset</button>
   </div>
-  <section class="warmup-handoff" aria-label="Next: live investor interview">
-    <div><span class="eyebrow">NEXT · LIVE INVESTOR INTERVIEW</span>
+  <section class="warmup-handoff" aria-label="Next: live practice">
+    <div><span class="eyebrow">NEXT · ${stage.custom ? "LIVE PRACTICE WITH " + esc(personaOf(stage).name).toUpperCase() : "LIVE INVESTOR INTERVIEW"}</span>
       <strong>Ready when you are</strong>
-      <p>Try a couple of warm-up turns, or continue now. You’ll see the full checklist again before the interview; the five-minute timer starts only when you begin.</p>
+      <p>Try a couple of warm-up turns, or continue now. You’ll see the full checklist again before the interview; the ${mins(limitOf(stage))} timer starts only when you begin.</p>
     </div>
     <button class="btn primary" id="startInterview">Continue to interview ${icon("arrowRight", 16)}</button>
   </section>
@@ -393,6 +416,24 @@ function coachView(root) {
     onLevel: (l) => micBtn.style.setProperty("--level", l.toFixed(3)),
     onError: (err) => { setStatus("idle"); micOff(); handleMicError(err); },
   });
+  // Whisper mode: record a turn, auto-stop after ~2.5 s of silence once you've spoken, then transcribe.
+  let heard = false, quietSince = 0;
+  const recorder = WHISPER() ? new Recorder({ onLevel: (l) => {
+    micBtn.style.setProperty("--level", l.toFixed(3));
+    if (!recorder?.on) return;
+    if (l > 0.12) { heard = true; quietSince = 0; interimEl.textContent = "Listening… tap the mic when you're done."; }
+    else if (heard) { quietSince ||= Date.now(); if (Date.now() - quietSince > 2500) finishRecording(); }
+  } }) : null;
+  async function finishRecording() {
+    if (!recorder?.on) return;
+    heard = false; quietSince = 0; micOff(); setStatus("thinking"); interimEl.textContent = "Transcribing…";
+    try {
+      const out = await transcribe(await recorder.stop(), { lang: S.micLang, sid: SID });
+      interimEl.textContent = "";
+      if (!alive) return;
+      if (out.text) send(out.text, true); else { setStatus("idle"); toast("We didn't catch that. Try again, or type."); }
+    } catch (e) { setStatus("idle"); interimEl.textContent = ""; toast(e.message, "err"); }
+  }
 
   function setStatus(s) {
     status = s;
@@ -415,12 +456,20 @@ function coachView(root) {
   }
   async function startListening() {
     if (!alive) return;
-    if (!SR) return handleMicError("unsupported");
+    if (!voiceInput()) return handleMicError("unsupported");
     tts.stop(); finals = ""; interim = ""; showInterim();
     setStatus("listening"); micOn();
+    if (recorder) {
+      try { heard = false; quietSince = 0; await recorder.start(); interimEl.textContent = "Listening… tap the mic when you're done."; }
+      catch (e) { setStatus("idle"); micOff(); handleMicError(e?.name === "NotAllowedError" ? "denied" : "nomic"); }
+      return;
+    }
     try { await mic.start(S.micLang); } catch (e) { setStatus("idle"); micOff(); handleMicError(e.message); }
   }
-  function stopListening() { clearTimeout(silence); mic.stop(); micOff(); if (status === "listening") setStatus("idle"); }
+  function stopListening() {
+    clearTimeout(silence); mic.stop(); if (recorder?.on) { recorder.stop(); interimEl.textContent = ""; }
+    micOff(); if (status === "listening") setStatus("idle");
+  }
 
   function renderMsgs(thinking = false) {
     msgsEl.innerHTML = C.history.map((m, i) => m.role === "coach"
@@ -456,7 +505,7 @@ function coachView(root) {
     const prior = C.history.slice(0, -1).filter(m => !m.failed).map(({ role, text }) => ({ role, text }));
     sending = true; setStatus("thinking"); renderMsgs(true);
     try {
-      const r = await callWithRetry("/api/coach", { stage: stage.id, history: prior, userText: last.text, covered: C.covered, sid: SID });
+      const r = await callWithRetry("/api/coach", { ...tb(stage), history: prior, userText: last.text, covered: C.covered, sid: SID });
       const before = new Set(C.covered);
       C.history.push({ role: "coach", text: r.reply }); C.covered = r.covered || C.covered; C.nextFocus = r.nextFocus; save();
       sending = false;
@@ -477,6 +526,7 @@ function coachView(root) {
   function micTap() {
     if (sending || paused) return;
     if (status === "speaking") { tts.stop(); handsFree = true; return startListening(); }
+    if (recorder?.on) return finishRecording();
     if (mic.on) { const t = `${finals} ${interim}`.trim(); if (t) send(t, true); else { handsFree = false; stopListening(); } return; }
     handsFree = true; startListening();
   }
@@ -499,7 +549,7 @@ function coachView(root) {
     $("#resumePractice", root).disabled = !paused;
     $("#typeIn", root).disabled = paused;
     $("button[type=submit]", root).disabled = paused;
-    micBtn.disabled = paused || !SR;
+    micBtn.disabled = paused || !voiceInput();
     $("#practiceStatus", root).textContent = paused ? "Stopped. Your conversation and draft are saved in this tab." : "Practice in progress. Stop saves your place without submitting.";
     if (paused) {
       statusEl.textContent = "Stopped · progress saved";
@@ -530,17 +580,18 @@ function coachView(root) {
   renderMsgs(); renderChecklist(); setStatus("idle");
   coachControls();
   if (!C.history.length) {
-    C.history.push({ role: "coach", text: COACH_OPENER }); save(); renderMsgs(); track("coach_start");
-    setTimeout(() => speakCoach(COACH_OPENER), 250);
+    const opener = stage.custom ? stage.scenario.opener : COACH_OPENER;
+    C.history.push({ role: "coach", text: opener }); save(); renderMsgs(); track("coach_start");
+    setTimeout(() => speakCoach(opener), 250);
   }
 }
 
 // ======================= SCREEN 5: SHOWTIME BRIEFING =======================
 function briefingView(root) {
-  const stage = stageById(S.stage); if (!stage) return go("/stage");
+  const stage = trackOf(); if (!stage) return go("/");
   root.innerHTML = `
-  <div class="head"><p class="eyebrow">STEP 2 · LIVE INVESTOR INTERVIEW</p><h2>Your ${esc(stage.name)} interview</h2>
-    <p>Your warm-up is done. Here is the complete checklist one more time. When you begin, explain your idea to Meera without interruptions, for up to five minutes. Then get a detailed plan for what to improve next.</p></div>
+  <div class="head"><p class="eyebrow">STEP 2 · ${stage.custom ? "LIVE PRACTICE" : "LIVE INVESTOR INTERVIEW"}</p><h2>Your ${esc(stage.name)}${stage.custom ? "" : " interview"}</h2>
+    <p>Your warm-up is done. Here is the complete checklist one more time. When you begin, explain it to ${esc(personaOf(stage).first)} without interruptions, for up to ${mins(limitOf(stage))}. Then get a detailed plan for what to improve next.</p></div>
   <div class="grid g2">
     <div class="card"><div class="sec-title"><h3>A guide for your explanation</h3></div>
       ${checklistHtml(stage, [], null, { details: true })}
@@ -548,16 +599,19 @@ function briefingView(root) {
     <div class="card" style="display:flex;flex-direction:column;gap:18px">
       <div class="sec-title" style="margin:0"><h3>Before you start</h3></div>
       <ul class="brief-rules">
-        <li>${icon("clock", 18)}<span>Take up to five minutes. The countdown stays out of sight until the final 45 seconds.</span></li>
+        <li>${icon("clock", 18)}<span>Take up to ${mins(limitOf(stage))}. The countdown stays out of sight until the final 45 seconds.</span></li>
         <li>${icon("messageCircle", 18)}<span>Speak or type in English, Hindi, or Hinglish. Focus on your idea, not perfect English.</span></li>
-        <li>${icon("square", 18)}<span>Need a break? Stop saves your place. Finished? Choose End pitch to get feedback. At five minutes, your pitch submits automatically.</span></li>
+        <li>${icon("square", 18)}<span>Need a break? Stop saves your place. Finished? Choose End pitch to get feedback. At ${mins(limitOf(stage))}, it submits automatically.</span></li>
       </ul>
-      <div class="row" style="gap:14px;margin-top:auto"><div class="avatar meera lg">MK</div>
-        <div><div class="meera-name">Meera Kapoor <span class="ai-label">AI practice investor</span></div><div class="small muted">A fictional practice partner—not a real funding decision.</div></div></div>
+      <div class="row" style="gap:14px;margin-top:auto"><div class="avatar meera lg">${esc(personaOf(stage).initials)}</div>
+        <div><div class="meera-name">${esc(personaOf(stage).name)} <span class="ai-label">AI practice ${esc(personaOf(stage).role)}</span></div><div class="small muted">A fictional practice partner—not a real funding decision.</div></div></div>
+      ${cameraSupported() ? `<label class="cam-optin"><input type="checkbox" id="camOptIn" ${S.camera ? "checked" : ""}>
+        <span><b>📷 Camera coach (optional)</b><br><span class="small muted">Live tips on eye contact, posture and gestures, plus a body-language score. Runs on your device; video is never uploaded.</span></span></label>` : ""}
       ${S.demo ? `<span class="pill accent" style="align-self:flex-start">Demo: sample Hinglish Seed pitch will be pre-filled</span>` : ""}
       <button class="btn primary lg" id="ready">Begin interview ${icon("arrowRight", 16)}</button>
     </div>
   </div>`;
+  $("#camOptIn", root)?.addEventListener("change", (e) => { S.camera = e.target.checked; save(); });
   $("#ready", root).addEventListener("click", () => {
     if (S.show?.phase === "paused" && S.show.stage === stage.id &&
         !confirm("Start a new interview and clear your saved pitch draft and timer? Cancel to keep your saved interview.")) return;
@@ -569,9 +623,10 @@ const newShow = (stage, phase) => ({ stage, phase, pending: null });
 // ======================= SCREEN 6: SHOWTIME ROOM =======================
 function showtimeView(root) {
   S.lastPractice = "pitch";
-  const stage = stageById(S.stage); if (!stage) return go("/stage");
+  const stage = trackOf(); if (!stage) return go("/");
   if (!S.show || S.show.stage !== stage.id) S.show = newShow(stage.id, "ready");
   const sh = S.show;
+  const LIMIT = limitOf(stage), PERSONA = personaOf(stage);
   if (sh.phase === "judging" && sh.pending) return judgingView(root, stage, sh.pending);
   if (sh.phase === "short") return tooShortView(root, stage);
   const startNow = sh.phase === "countdown";
@@ -579,9 +634,11 @@ function showtimeView(root) {
   sh.phase = restored ? "paused" : "ready"; save();
 
   let alive = true, phase = restored ? "paused" : "ready", t0 = 0, timerInt = null, interim = "", muted = false;
-  let elapsedMs = Math.min(PITCH_SECONDS * 1000, Math.max(0, Number(sh.elapsedMs) || 0)), checkpoint = 0;
+  let elapsedMs = Math.min(LIMIT * 1000, Math.max(0, Number(sh.elapsedMs) || 0)), checkpoint = 0;
   const segs = Array.isArray(sh.segs) ? sh.segs : [];
-  onLeave(() => { if (phase === "live" || phase === "paused") persistPitch(); alive = false; clearInterval(timerInt); mic.stop(); closeOverlay(); });
+  const whisper = WHISPER();
+  let camera = null;
+  onLeave(() => { if (phase === "live" || phase === "paused") persistPitch(); alive = false; clearInterval(timerInt); mic.stop(); recorder?.stop(); camera?.stop(); closeOverlay(); });
 
   root.innerHTML = `
   <div class="practice-toolbar" aria-label="Practice controls">
@@ -592,12 +649,12 @@ function showtimeView(root) {
   </div>
   <div class="room show-room">
     <section class="stage-show">
-      <div class="row"><span class="pill accent">🎤 Live investor interview · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
-      <div class="pitch-time" id="timer" role="timer" aria-label="Time remaining" aria-live="off" ${PITCH_SECONDS - elapsedMs / 1000 > FINAL_COUNTDOWN_SECONDS ? "hidden" : ""}>${fmt(Math.ceil(PITCH_SECONDS - elapsedMs / 1000))}</div>
+      <div class="row"><span class="pill accent">🎤 ${stage.custom ? "Live practice" : "Live investor interview"} · ${esc(stage.name)}</span><span class="spacer"></span>${langToggle()}</div>
+      <div class="pitch-time" id="timer" role="timer" aria-label="Time remaining" aria-live="off" ${LIMIT - elapsedMs / 1000 > FINAL_COUNTDOWN_SECONDS ? "hidden" : ""}>${fmt(Math.ceil(LIMIT - elapsedMs / 1000))}</div>
       <p class="small muted" id="timeNotice" role="status"></p>
       <div class="meera-zone">
-        <div class="avatar meera xl" id="meera">MK</div>
-        <div class="meera-name">Meera Kapoor <span class="ai-label">AI investor</span></div>
+        <div class="avatar meera xl" id="meera">${esc(personaOf(stage).initials)}</div>
+        <div class="meera-name">${esc(personaOf(stage).name)} <span class="ai-label">AI ${esc(personaOf(stage).role)}</span></div>
         <div class="small muted" id="meeraState">Your AI practice partner</div>
         <div class="reactions" id="reactions" aria-hidden="true"></div>
       </div>
@@ -607,18 +664,24 @@ function showtimeView(root) {
       <div id="micErr"></div>
       <div class="show-controls">
         <button class="mic off" id="mic" aria-label="Mute microphone" disabled>${icon("mic", 32)}</button>
-        <button class="btn lg" id="endBtn" disabled>${icon("square", 16)} End pitch</button>
+        <button class="btn lg" id="endBtn" disabled>${icon("square", 16)} ${stage.custom ? "Finish" : "End pitch"}</button>
       </div>
       <div class="hint"><kbd>Space</kbd> mutes or unmutes the mic</div>
     </section>
     <aside class="show-side">
+      ${cameraSupported() ? `<div class="card cam-card" id="camCard">
+        <div class="row"><b>📷 Camera coach</b><span class="spacer"></span><button class="btn sm" id="camToggle" type="button">${S.camera ? "Turn off" : "Turn on"}</button></div>
+        <div class="cam-wrap" id="camWrap" hidden><video id="camVideo" playsinline muted autoplay></video><div class="cam-nudge" id="camNudge" role="status" hidden></div></div>
+        <p class="small muted" id="camStatus">Optional: live tips on eye contact, posture and gestures. Video stays on your device.</p>
+        <label class="small cam-tips"><input type="checkbox" id="camTips" ${S.camTips === false ? "" : "checked"}> Show live tips</label>
+      </div>` : ""}
       <div class="card">
         <button class="btn sm" id="ckToggle" aria-expanded="false">${icon("list", 14)} Show checklist</button>
         <div id="miniCk" hidden style="margin-top:12px">${checklistHtml(stage, [], null, { cls: "mini-check" })}</div>
       </div>
       <details class="card" id="typed" ${!SR || S.demo ? "open" : ""}>
         <summary>${icon("keyboard", 18)} Type instead ${icon("chevronDown", 18)}</summary>
-        <p class="small muted" style="margin:10px 0">Prefer typing? You have the same five-minute practice window. Stop pauses your session.</p>
+        <p class="small muted" style="margin:10px 0">Prefer typing? You have the same ${mins(LIMIT)} practice window. Stop pauses your session.</p>
         ${S.demo ? `<span class="pill accent" style="margin-bottom:10px">Demo transcript loaded (sample)</span>` : ""}
         <textarea class="field" id="typedTx" placeholder="Type your pitch here…" maxlength="10000" ${restored ? "disabled" : ""}>${esc(sh.typedDraft || (S.demo ? DEMO_PITCH : ""))}</textarea>
         <div class="row" style="margin-top:10px"><button class="btn primary" id="submitTyped" disabled>${icon("send", 15)} Submit</button>
@@ -642,7 +705,34 @@ function showtimeView(root) {
       else if (err === "nomic" || err === "network" || err === "ended") { toast("The mic stopped. You can keep going by typing.", "err"); $("#typed", root).open = true; }
     },
   });
+  const recorder = whisper ? new Recorder({ onLevel: (l) => micBtn.style.setProperty("--level", l.toFixed(3)) }) : null;
   const setMeera = (cls, label) => { meera.className = `avatar meera xl ${cls}`; $("#meeraState", root).textContent = label; };
+  // ---- camera coach ----
+  let nudgeTimer = null;
+  async function cameraOn() {
+    if (camera || !cameraSupported()) return;
+    const video = $("#camVideo", root), statusEl = $("#camStatus", root);
+    $("#camWrap", root).hidden = false; $("#camToggle", root).textContent = "Turn off";
+    camera = new PresenceCoach({ video,
+      onStatus: (_, text) => { statusEl.textContent = text; },
+      onNudge: (n) => {
+        if (S.camTips === false || phase !== "live") return;
+        const el = $("#camNudge", root); el.textContent = n.text; el.hidden = false;
+        clearTimeout(nudgeTimer); nudgeTimer = setTimeout(() => { el.hidden = true; }, 4500);
+      } });
+    try {
+      await camera.start(); track("camera_on");
+      if (phase !== "live") camera.pause();
+      if (!alive) camera.stop();
+    } catch (e) {
+      camera?.stop(); camera = null; $("#camWrap", root).hidden = true; $("#camToggle", root).textContent = "Turn on";
+      statusEl.textContent = e?.name === "NotAllowedError" ? "Camera access is blocked. Allow it in your browser's site settings to use the camera coach. Your pitch works without it."
+        : "The camera coach couldn't start on this device. Your pitch works without it.";
+    }
+  }
+  function cameraOff() { camera?.stop(); camera = null; const w = $("#camWrap", root); if (w) w.hidden = true; const b = $("#camToggle", root); if (b) b.textContent = "Turn on"; const st = $("#camStatus", root); if (st) st.textContent = "Camera coach is off."; }
+  $("#camToggle", root)?.addEventListener("click", () => { S.camera = !camera; save(); if (camera) cameraOff(); else cameraOn(); });
+  $("#camTips", root)?.addEventListener("change", (e) => { S.camTips = e.target.checked; save(); if (!e.target.checked) $("#camNudge", root).hidden = true; });
   function renderTx() {
     const fin = segs.map(s => s.text).join(" ");
     lt.innerHTML = fin || interim ? `${esc(fin)} <span class="int">${esc(interim)}</span>` : `<span class="ph">${phase === "live" ? "Listening… start whenever you're ready." : "Your words will appear here as you speak."}</span>`;
@@ -660,17 +750,25 @@ function showtimeView(root) {
     $("#reactions", root)?.append(c); setTimeout(() => c.remove(), 2700);
   }
   async function startMic() {
-    if (!SR || phase !== "live") return;
+    if (!voiceInput() || phase !== "live") return;
     muted = false; micBtn.classList.remove("off"); micBtn.classList.add("on"); micBtn.setAttribute("aria-label", "Mute microphone");
+    if (recorder) {
+      try {
+        if (recorder.rec && recorder.rec.state !== "inactive") recorder.resume(); else await recorder.start();
+        lt.innerHTML = `<span class="ph">Recording… your words will be transcribed when you end the pitch.</span>`;
+      } catch (e) { mic.o.onError(e?.name === "NotAllowedError" ? "denied" : "nomic"); }
+      return;
+    }
     try { await mic.start(S.micLang); } catch (e) { mic.o.onError(e.message); }
   }
+  const micLive = () => (recorder ? recorder.on : mic.on);
   function toggleMute() {
-    if (phase !== "live" || !SR) return;
-    if (mic.on) { mic.stop(); muted = true; micBtn.classList.remove("on"); micBtn.setAttribute("aria-label", "Unmute microphone"); setMeera("", "Mic muted"); }
+    if (phase !== "live" || !voiceInput()) return;
+    if (micLive()) { if (recorder) recorder.pause(); else mic.stop(); muted = true; micBtn.classList.remove("on"); micBtn.setAttribute("aria-label", "Unmute microphone"); setMeera("", "Mic muted"); }
     else { startMic(); setMeera("listening", "Listening"); }
   }
   function tick() {
-    const left = PITCH_SECONDS - (elapsedMs + Date.now() - t0) / 1000;
+    const left = LIMIT - (elapsedMs + Date.now() - t0) / 1000;
     timerEl.textContent = fmt(Math.ceil(left));
     const reveal = left <= FINAL_COUNTDOWN_SECONDS;
     timerEl.hidden = !reveal;
@@ -681,7 +779,7 @@ function showtimeView(root) {
     else if (Date.now() - checkpoint > 1000) { checkpoint = Date.now(); persistPitch(); }
   }
   function persistPitch() {
-    sh.elapsedMs = Math.min(PITCH_SECONDS * 1000, elapsedMs + (phase === "live" ? Date.now() - t0 : 0));
+    sh.elapsedMs = Math.min(LIMIT * 1000, elapsedMs + (phase === "live" ? Date.now() - t0 : 0));
     sh.segs = segs;
     sh.typedDraft = $("#typedTx", root)?.value || "";
     sh.phase = "paused"; // A reload always requires a deliberate Resume gesture.
@@ -691,7 +789,7 @@ function showtimeView(root) {
     if (phase !== "live") return;
     if (interim.trim()) segs.push({ text: interim.trim(), start: elapsedMs + Date.now() - t0, end: elapsedMs + Date.now() - t0 });
     elapsedMs += Date.now() - t0; phase = "paused"; interim = "";
-    clearInterval(timerInt); mic.stop(); tts.stop(); persistPitch(); renderTx();
+    clearInterval(timerInt); mic.stop(); recorder?.pause(); camera?.pause(); tts.stop(); persistPitch(); renderTx();
     $("#stopPractice", root).disabled = true; $("#resumePractice", root).disabled = false;
     endBtn.disabled = true; micBtn.disabled = true; $("#submitTyped", root).disabled = true; $("#typedTx", root).disabled = true;
     setMeera("", "Stopped · progress saved");
@@ -700,35 +798,51 @@ function showtimeView(root) {
   function runClock() {
     phase = "live"; t0 = Date.now(); timerInt = setInterval(tick, 200);
     $("#stopPractice", root).disabled = false; $("#resumePractice", root).disabled = true;
-    $("#typedTx", root).disabled = false; endBtn.disabled = false; micBtn.disabled = !SR; $("#submitTyped", root).disabled = false;
+    $("#typedTx", root).disabled = false; endBtn.disabled = false; micBtn.disabled = !voiceInput(); $("#submitTyped", root).disabled = false;
+    camera?.resume();
     $("#practiceStatus", root).textContent = "Practice in progress. Stop pauses the timer; End pitch submits for feedback.";
-    setMeera("listening", SR ? "Listening" : "Ready for your typed pitch");
+    setMeera("listening", voiceInput() ? "Listening" : "Ready for your typed pitch");
     renderTx(); tick();
     if (phase !== "live") return;
-    if (SR) startMic(); else $("#typedTx", root).focus();
+    if (voiceInput()) startMic(); else $("#typedTx", root).focus();
   }
   async function begin() {
     if (!alive) return;
-    tts.prefetch(MEERA_INTRO, "meera"); // warm up her voice during the countdown
+    tts.prefetch(PERSONA.intro, "meera"); // warm up her voice during the countdown
+    if (S.camera) cameraOn();
     // full-screen 3-2-1 countdown
     for (const n of [3, 2, 1]) {
       $("#overlay").innerHTML = `<div class="countdown" aria-live="assertive"><span>${n}</span></div>`;
       await sleep(1000); if (!alive) return;
     }
     closeOverlay();
-    phase = "intro"; setMeera("speaking", "Speaking"); caption.textContent = `"${MEERA_INTRO}"`;
-    await tts.speak(MEERA_INTRO, "meera"); if (!alive) return;
+    phase = "intro"; setMeera("speaking", "Speaking"); caption.textContent = `"${PERSONA.intro}"`;
+    await tts.speak(PERSONA.intro, "meera"); if (!alive) return;
     caption.textContent = "";
     elapsedMs = 0; runClock();
     $("#typedHint", root).textContent = "Submit ends your pitch.";
     renderTx(); track("showtime_start");
   }
-  function end(reason) {
+  async function end(reason) {
     if (phase !== "live") return;
     phase = "ended"; clearInterval(timerInt); mic.stop();
     const tEnd = Date.now();
+    const typedNow = $("#typedTx", root)?.value || "";
+    const presence = camera?.summary() || null; camera?.stop(); camera = null;
+    if (recorder && recorder.chunks.length) {
+      // Whisper mode: transcribe the whole recording; its segment timings give us real pause metrics.
+      root.innerHTML = `<div class="center" style="padding:40px 0"><div class="avatar meera xl thinking" style="margin:0 auto 18px">${esc(personaOf(stage).initials)}</div><h2>Transcribing your pitch…</h2><p class="muted">Using open-source Whisper speech recognition. This takes a few seconds.</p></div>`;
+      try {
+        const out = await transcribe(await recorder.stop(), { lang: S.micLang, sid: SID });
+        segs.length = 0;
+        for (const g of out.segments?.length ? out.segments : [{ start: 0, end: 0, text: out.text }]) segs.push({ text: g.text, start: g.start * 1000, end: g.end * 1000 });
+      } catch (e) {
+        toast(e.message || "Transcription failed.", "err");
+        if (!segs.length && !typedNow.trim()) { S.show.phase = "short"; save(); return tooShortView(root, stage); }
+      }
+    }
     const spoken = [segs.map(s => s.text).join(" "), interim].join(" ").trim();
-    const typedRaw = $("#typedTx", root).value.trim();
+    const typedRaw = typedNow.trim();
     const typedUsed = reason === "typed" || (!spoken && typedRaw);
     const transcript = [spoken, typedUsed ? typedRaw : ""].filter(Boolean).join(" ").trim();
     const isDemo = S.demo && typedUsed && typedRaw === DEMO_PITCH.trim() && !spoken;
@@ -736,8 +850,8 @@ function showtimeView(root) {
     if (isDemo) durationSec = Math.round(wordCount(DEMO_PITCH) / 140 * 60); // sample pitch: pace estimated at a natural 140 wpm
     let longPauses = 0, longest = 0;
     for (let i = 1; i < segs.length; i++) { const gap = (segs[i].start - segs[i - 1].end) / 1000; if (gap > 2.5) longPauses++; longest = Math.max(longest, gap); }
-    const metrics = { durationSec, longPauses, longestPauseSec: Math.round(longest * 10) / 10, typed: !!typedUsed && !spoken && !isDemo };
-    if (reason === "timeout") toast("Your five-minute practice is complete. Preparing your feedback.");
+    const metrics = { durationSec, longPauses, longestPauseSec: Math.round(longest * 10) / 10, typed: !!typedUsed && !spoken && !isDemo, ...(presence ? { presence } : {}) };
+    if (reason === "timeout") toast(`Your ${mins(LIMIT)} practice is complete. Preparing your feedback.`);
     if (wordCount(transcript) < 20) { S.show.phase = "short"; save(); return tooShortView(root, stage); }
     S.show.phase = "judging"; S.show.pending = { transcript, metrics, demo: isDemo }; save();
     judgingView(root, stage, S.show.pending);
@@ -775,8 +889,8 @@ function showtimeView(root) {
   else {
     // Arrived by refresh or link: need a tap first (browsers require a gesture for mic + speech).
     $("#overlay").innerHTML = `<div class="modal-bg"><div class="modal center" role="dialog" aria-modal="true">
-      <div class="avatar meera lg" style="margin:0 auto 14px">MK</div><h2>Ready when you are</h2>
-      <p class="muted" style="margin-top:8px">Take up to five minutes after Meera's introduction. There’s no visible countdown until the last 45 seconds. You can stop and resume whenever you need.</p>
+      <div class="avatar meera lg" style="margin:0 auto 14px">${esc(personaOf(stage).initials)}</div><h2>Ready when you are</h2>
+      <p class="muted" style="margin-top:8px">Take up to ${mins(LIMIT)} after ${esc(personaOf(stage).first)}'s introduction. There’s no visible countdown until the last 45 seconds. You can stop and resume whenever you need.</p>
       <div class="actions" style="justify-content:center"><a class="btn" href="#/briefing">Back to briefing</a><button class="btn primary" id="go">Start ${icon("arrowRight", 16)}</button></div></div></div>`;
     $("#go").addEventListener("click", () => { closeOverlay(); begin(); });
   }
@@ -784,7 +898,7 @@ function showtimeView(root) {
 
 function tooShortView(root, stage) {
   root.innerHTML = `<div class="card center" style="max-width:560px;margin:40px auto;padding:36px">
-    <div class="avatar meera lg" style="margin:0 auto 16px">MK</div>
+    <div class="avatar meera lg" style="margin:0 auto 16px">${esc(personaOf(stage).initials)}</div>
     <h2>Let's hear a little more of your idea.</h2><p class="muted" style="margin-top:10px">We need at least 20 words to give useful feedback. Start with who you're helping, their problem, and what you're building. You can speak or type.</p>
     <div class="actions" style="justify-content:center"><button class="btn" id="coach">Practice with Coach</button><button class="btn primary" id="retry">${icon("retry", 16)} Retry</button></div></div>`;
   $("#retry", root).addEventListener("click", () => { S.show = newShow(stage.id, "countdown"); save(); track("retry"); router(); });
@@ -796,7 +910,7 @@ function judgingView(root, stage, pending) {
   const steps = ["Reviewing your explanation…", "Checking the points for your stage…", "Identifying what needs more detail…",
     ...(HEALTH_V.evaluator ? ["Cross-checking the evidence…"] : []), "Preparing your improvement plan…"];
   root.innerHTML = `<div class="center" style="padding:30px 0">
-    <div class="avatar meera xl thinking" style="margin:0 auto 18px">MK</div>
+    <div class="avatar meera xl thinking" style="margin:0 auto 18px">${esc(personaOf(stage).initials)}</div>
     <h2>Turning your pitch into a practical next-step plan</h2><p class="muted" style="margin-top:6px">We're reviewing what you said and how to strengthen it. A detailed review can take up to a minute. Your pitch is saved in this tab.</p>
     <ul class="loading-steps" id="steps">${steps.map(s => `<li><span class="box"></span>${s}</li>`).join("")}</ul>
     <div id="jErr"></div></div>`;
@@ -806,10 +920,15 @@ function judgingView(root, stage, pending) {
   onLeave(() => timers.forEach(clearTimeout));
   (async () => {
     try {
-      const r = await callWithRetry("/api/judge", { stage: stage.id, transcript: pending.transcript, metrics: pending.metrics, demo: !!pending.demo, sid: SID });
+      const r = await callWithRetry("/api/judge", { ...tb(stage), transcript: pending.transcript, metrics: pending.metrics, demo: !!pending.demo, sid: SID });
       if (!alive) return;
       timers.forEach(clearTimeout); k = steps.length; adv();
-      S.report = { ...r, stage: stage.id, transcript: pending.transcript, demo: !!pending.demo, spoken: false, at: Date.now() };
+      S.report = { ...r, stage: stage.id, scenario: stage.custom ? stage.scenario : undefined, transcript: pending.transcript, demo: !!pending.demo, spoken: false, at: Date.now() };
+      if (!r.offline && !pending.demo) {
+        S.history = [{ stage: stage.id, scenario: stage.custom ? stage.scenario.name : undefined, overall: r.overall, scores: r.scores, at: new Date().toISOString(),
+          checklist: (r.checklist || []).map(c => ({ id: c.id, status: c.status })), metrics: { presence: r.metrics?.presence, fillers: r.metrics?.fillers, wpm: r.metrics?.wpm, typed: r.metrics?.typed } },
+          ...(S.history || [])].slice(0, 5);
+      }
       S.show.phase = "done"; S.show.pending = null; save();
       $$(".box", root).forEach(b => b.innerHTML = icon("check", 12));
       await sleep(350); if (alive) go("/report");
@@ -818,7 +937,7 @@ function judgingView(root, stage, pending) {
       if (e.status === 422) { S.show.phase = "short"; S.show.pending = null; save(); return tooShortView(root, stage); }
       timers.forEach(clearTimeout);
       $(".avatar", root).classList.remove("thinking");
-      $("#jErr", root).innerHTML = `<p class="flag" style="max-width:460px;margin:18px auto 0">${esc(e.status === 429 ? e.message : "Meera couldn't finish your report. Your pitch is saved, so you can try again.")}</p>
+      $("#jErr", root).innerHTML = `<p class="flag" style="max-width:460px;margin:18px auto 0">${esc(e.status === 429 ? e.message : "We couldn't finish your report. Your practice is saved, so you can try again.")}</p>
         <div class="actions" style="justify-content:center"><button class="btn" id="redo">${icon("retry", 15)} Pitch again</button><button class="btn primary" id="again">Try the report again</button></div>`;
       $("#again", root).addEventListener("click", () => router());
       $("#redo", root).addEventListener("click", () => { S.show = newShow(stage.id, "countdown"); save(); router(); });
@@ -843,24 +962,24 @@ const top = (obj, n) => Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).sl
 function reportView(root) {
   const R = S.report;
   if (!R) return go(S.stage ? "/briefing" : "/");
-  const stage = stageById(R.stage);
+  const stage = trackOf(R.stage, R.scenario);
   const checklist = addReportGuidance(stage, R.checklist || []);
   const M = R.metrics || {};
   const V = { take_meeting: ["ok", "A clear case for a follow-up", "var(--success)"], interested: ["warn", "Promising, with points to clarify", "var(--warning)"], not_yet: ["bad", "Let's strengthen the explanation", "var(--danger)"] }[R.verdict] || ["warn", "Some points need clarification", "var(--warning)"];
   const C = 2 * Math.PI * 56;
-  const scoreCard = (k, label) => { const s = R.scores?.[k] || { score: 0, reason: "" }; return `<div class="card score-card"><h4>${label}</h4><div class="n">${s.score}<small> / 10</small></div><div class="bar"><i data-w="${s.score * 10}" style="background:${s.score >= 7 ? "var(--success)" : s.score >= 5 ? "var(--warning)" : "var(--danger)"}"></i></div><p>${esc(s.reason)}</p>${s.agent != null ? `<p class="small muted" style="margin-top:6px">Average of Meera and the Pitch Evaluator (${s.agent}/10)</p>` : ""}</div>`; };
+  const scoreCard = (k, label) => { const s = R.scores?.[k] || { score: 0, reason: "" }; return `<div class="card score-card"><h4>${label}</h4><div class="n">${s.score}<small> / 10</small></div><div class="bar"><i data-w="${s.score * 10}" style="background:${s.score >= 7 ? "var(--success)" : s.score >= 5 ? "var(--warning)" : "var(--danger)"}"></i></div><p>${esc(s.reason)}</p>${s.agent != null ? `<p class="small muted" style="margin-top:6px">Average of both AI reviews (${s.agent}/10)</p>` : ""}</div>`; };
   const stIcon = { covered: [icon("check", 17), "Covered"], weak: [icon("info", 17), "Needs detail"], missing: [icon("alert", 17), "Not explained"] };
   const paceCls = M.paceLabel === "Great" ? "ok" : "warn";
   root.innerHTML = `
   <div class="report">
-    <div class="head"><h2>Your pitch feedback</h2><p>A practical review for your ${esc(stage?.name || "current")} stage. Use it to improve your explanation, not as a prediction of funding or business success.</p></div>
+    <div class="head"><h2>Your ${stage?.custom ? "practice" : "pitch"} feedback</h2><p>${stage?.custom ? `A practical review of your ${esc(stage.name.toLowerCase())}. Use it to sharpen what you say and how you say it.` : `A practical review for your ${esc(stage?.name || "current")} stage. Use it to improve your explanation, not as a prediction of funding or business success.`}</p></div>
     ${R.offline ? `<div class="flag">Offline mode: this report uses simple keyword rules, not an AI assessment. It can miss context. The improvement plans below are based on your stage checklist.</div>` : ""}
     ${R.demo ? `<div class="flag">Sample demo transcript (fictional company). Pace and time used are estimated at 140 wpm.</div>` : ""}
 
     <section class="card verdict-hero sec" aria-label="Verdict">
-      <div class="avatar meera lg" id="rAv">MK</div>
+      <div class="avatar meera lg" id="rAv">${esc(personaOf(stage).initials)}</div>
       <div class="vh-body">
-        <div class="row"><span class="pill big ${V[0]}">${V[1]}</span><span class="small muted">Meera Kapoor · <span class="ai-label">AI investor</span> · ${esc(stage?.name || "")} stage</span></div>
+        <div class="row"><span class="pill big ${V[0]}">${V[1]}</span><span class="small muted">${esc(personaOf(stage).name)} · <span class="ai-label">AI ${esc(personaOf(stage).role)}</span> · ${esc(stage?.name || "")}${stage?.custom ? "" : " stage"}</span></div>
         <p class="quote">"${esc(R.investorReaction)}"</p>
         <p class="oneline">Your idea, as understood from this pitch: <b>${esc(R.pitchInOneLine)}</b></p>
         ${R.missingMust ? `<p class="small" style="color:var(--warning);margin-top:8px">A key point for your stage wasn't explained clearly. The score includes a 10-point adjustment; use the plan below to work on it.</p>` : ""}
@@ -878,12 +997,12 @@ function reportView(root) {
 
     ${agentCard(R)}
 
-    <section class="card sec"><div class="sec-title"><h3>${esc(stage?.name || "")} pitch checklist</h3><span class="spacer"></span><span class="small muted">${checklist.filter(c => c.status === "covered").length}/${checklist.length} clearly explained</span></div>
+    <section class="card sec"><div class="sec-title"><h3>${esc(stage?.name || "")}${stage?.custom ? "" : " pitch"} checklist</h3><span class="spacer"></span><span class="small muted">${checklist.filter(c => c.status === "covered").length}/${checklist.length} clearly explained</span></div>
       <p class="small muted" style="margin-bottom:14px">Covered = explained clearly. Needs detail = mentioned, but not specific enough. Not explained = we couldn't find a clear answer. ★ marks a key point for this stage.</p>
       <table class="ct"><thead><tr><th>Status</th><th>Pitch point</th><th>What your pitch said</th></tr></thead><tbody>
       ${R.checklist.map(c => `<tr><td class="st" title="${stIcon[c.status][1]}">${stIcon[c.status][0]}<span class="sr">${stIcon[c.status][1]}</span></td>
         <td class="el">${esc(c.title)}${c.must ? ' <span class="must">★</span>' : ""}</td>
-        <td><div class="ev ${c.evidence === "Not mentioned" ? "none" : ""}">${c.evidence === "Not mentioned" ? "Not mentioned" : `"${esc(c.evidence)}"`}</div>${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}</td></tr>`).join("")}
+        <td><div class="ev ${c.evidence === "Not mentioned" ? "none" : ""}">${c.evidence === "Not mentioned" ? "Not mentioned" : `"${esc(c.evidence)}"${c.quoteVerified === false ? ' <span class="small muted">(paraphrased)</span>' : ""}`}</div>${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}</td></tr>`).join("")}
       </tbody></table></section>
     ${improvementPlanHTML(checklist, esc)}
 
@@ -895,42 +1014,90 @@ function reportView(root) {
         <div class="card tile"><div class="k">Longest pause · Practice time</div><div class="v">${M.typed ? "—" : `${M.longestPauseSec ?? 0}s`}</div><div class="d">${M.typed ? "" : `${M.longPauses ?? 0} pause${M.longPauses === 1 ? "" : "s"} over 2.5s · `}${fmt(M.durationSec)} / ${fmt(R.practiceLimitSec || 120)}</div></div>
       </div></section>
 
+    ${presenceSection(M.presence)}
+
     <section class="grid g2 sec">
       <div class="card"><div class="sec-title"><h3>What to keep</h3></div>
-        ${R.strengths.map(s => `<div class="item"><h4>${esc(s.title)}</h4>${s.quote ? `<div class="qblock">"${esc(s.quote)}"</div>` : ""}<p class="why">${esc(s.why)}</p></div>`).join("") || `<p class="muted">This review didn't identify a specific strength to highlight. Start with one improvement above and build from there.</p>`}</div>
+        ${R.strengths.map(s => `<div class="item"><h4>${esc(s.title)}</h4>${s.quote ? `<div class="qblock">"${esc(s.quote)}"${s.quoteVerified === false ? ' <span class="small muted">(paraphrased)</span>' : ""}</div>` : ""}<p class="why">${esc(s.why)}</p></div>`).join("") || `<p class="muted">This review didn't identify a specific strength to highlight. Start with one improvement above and build from there.</p>`}</div>
       <div class="card"><div class="sec-title"><h3>Refine how you explain it</h3></div>
         ${R.fixes.map((f, i) => `<div class="item"><h4>${i + 1}. ${esc(f.title)}</h4>${f.youSaid ? `<div class="qblock said">You said: "${esc(f.youSaid)}"</div>` : ""}${f.try ? `<div class="qblock try">Try: "${esc(f.try)}"</div>` : ""}<p class="why">${esc(f.why)}</p></div>`).join("")}</div>
     </section>
 
-    <section class="card sec"><div class="sec-title"><span class="avatar meera" style="width:32px;height:32px;font-size:11px">MK</span><h3>A question to prepare for</h3></div>
+    <section class="card sec"><div class="sec-title"><span class="avatar meera" style="width:32px;height:32px;font-size:11px">${esc(personaOf(stage).initials)}</span><h3>A question to prepare for</h3></div>
       <p style="font-size:18px;font-weight:600">"${esc(R.toughestQuestion?.question)}"</p>
-      <p class="muted" style="margin-top:8px"><b style="color:var(--text)">How to answer:</b> ${esc(R.toughestQuestion?.howToAnswer)}</p></section>
+      <p class="muted" style="margin-top:8px"><b style="color:var(--text)">How to answer:</b> ${esc(R.toughestQuestion?.howToAnswer)}</p>
+      ${R.toughestQuestion?.question ? `<div class="followup" id="followup">
+        <label class="small" for="fuAnswer"><b>Practise your answer now.</b> Speak or type it; ${esc(personaOf(stage).first)} will review it.</label>
+        <textarea class="field" id="fuAnswer" maxlength="4000" placeholder="Your answer…">${esc(R.followup?.answer || "")}</textarea>
+        <div class="row" style="margin-top:10px"><button class="btn" id="fuMic" type="button">${icon("mic", 15)} Speak</button><button class="btn primary" id="fuSend" type="button">Get feedback</button></div>
+        <div id="fuResult">${R.followup?.result ? followupResult(R.followup.result) : ""}</div></div>` : ""}</section>
+
+    <section class="card sec plan-card" id="planCard"><div class="sec-title"><h3>Your next practice plan</h3><span class="spacer"></span><span class="pill accent">AI practice agent</span></div>
+      <div id="planBody">${R.plan ? planHTML(R.plan) : `<p class="muted">Let the practice agent review this report${S.history?.length > 1 ? " and your recent attempts" : ""}, then set three short drills on the points that will move your score most.</p>
+      <div class="actions" style="justify-content:flex-start"><button class="btn primary" id="planBtn">Build my plan</button></div>`}</div></section>
 
     <section class="card sec"><div class="sec-title"><h3>A draft for your next practice</h3><span class="spacer"></span>
       <button class="btn sm" id="copyRw">${icon("copy", 14)} Copy</button><button class="btn sm" id="listenRw">${icon("volume", 14)} Listen</button></div>
       <p class="rewrite">${esc(R.rewrite)}</p>
       <p class="small muted" style="margin-top:10px">A suggested structure based on your pitch, not a script to memorise. Check every claim and fill the [placeholders] with your real facts.</p></section>
 
+    ${R.agentTrace?.length ? `<details class="card sec"><summary>How this feedback was made <span class="small muted" style="font-weight:400">${R.agentTrace.length} agents${R.reviewMs ? ` · ${Math.round(R.reviewMs / 100) / 10}s` : ""}</span>${icon("chevronDown", 18)}</summary>
+      <ol class="agent-trace" style="margin-top:12px">${R.agentTrace.map(t => `<li><span class="pill">${esc(AGENT_NAMES[t.agent] || t.agent)}</span> ${esc(t.detail)}</li>`).join("")}</ol>
+      <p class="small muted" style="margin-top:10px">Clarity AI uses a team of specialised agents. Quotes are checked against your transcript so feedback never invents what you said.</p></details>` : ""}
+
     <details class="card sec"><summary>Full transcript <span class="small muted" style="font-weight:400"><mark class="f">filler</mark> <mark class="h">hedge</mark></span>${icon("chevronDown", 18)}</summary>
       <div class="transcript">${highlight(R.transcript || "")}</div></details>
   </div>
   <div class="sticky-bar"><div class="in">
-    <button class="btn primary" id="retryShow">↻ Retry interview</button>
+    <button class="btn primary" id="retryShow">↻ ${stage?.custom ? "Practise again" : "Retry interview"}</button>
     <button class="btn" id="toCoach">Practice with Coach</button>
-    <button class="btn ghost" id="toStage">Change stage</button></div></div>`;
+    <button class="btn ghost" id="toStage">${stage?.custom ? "New practice" : "Change stage"}</button>
+    <button class="btn ghost" id="printReport">${icon("copy", 15)} Save as PDF</button></div></div>`;
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const fg = $(".ring .fg", root); if (fg) fg.style.strokeDashoffset = fg.dataset.off;
     $$(".bar i", root).forEach(b => { b.style.width = `${b.dataset.w}%`; });
   }));
-  $("#retryShow", root).addEventListener("click", () => { S.stage = R.stage; S.show = newShow(R.stage, "countdown"); save(); track("retry"); go("/showtime"); });
-  $("#toCoach", root).addEventListener("click", () => { S.stage = R.stage; save(); go("/coach"); });
-  $("#toStage", root).addEventListener("click", () => go("/stage"));
+  $("#retryShow", root).addEventListener("click", () => { S.stage = R.stage; if (R.scenario) S.scenario = R.scenario; S.show = newShow(R.stage, "countdown"); save(); track("retry"); go("/showtime"); });
+  $("#toCoach", root).addEventListener("click", () => { S.stage = R.stage; if (R.scenario) S.scenario = R.scenario; save(); go("/coach"); });
+  $("#toStage", root).addEventListener("click", () => go(R.scenario ? "/" : "/stage"));
+  $("#printReport", root).addEventListener("click", () => window.print());
+  // Follow-up answer review.
+  const fuAnswer = $("#fuAnswer", root);
+  if (fuAnswer) {
+    onLeave(bindDictation($("#fuMic", root), fuAnswer, { SR, lang: () => S.micLang, whisper: WHISPER(), toast, sid: SID }));
+    $("#fuSend", root).addEventListener("click", async (e) => {
+      const btn = e.currentTarget; btn.classList.add("busy"); btn.disabled = true;
+      try {
+        const out = await callWithRetry("/api/followup", { ...tb(stage), question: R.toughestQuestion.question, answer: fuAnswer.value, pitchInOneLine: R.pitchInOneLine, sid: SID });
+        R.followup = { answer: fuAnswer.value, result: out }; save();
+        $("#fuResult", root).innerHTML = followupResult(out);
+        if (out.reaction) tts.speak(out.reaction, "meera");
+      } catch (err) { toast(err.message, "err"); }
+      btn.classList.remove("busy"); btn.disabled = false;
+    });
+  }
+  // Practice-plan agent.
+  const bindPlan = () => {
+    $("#planBtn", root)?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget; btn.classList.add("busy"); btn.disabled = true;
+      try {
+        const out = await callWithRetry("/api/agent/plan", { ...tb(stage), recent: [R, ...(S.history || []).slice(1)], sid: SID });
+        R.plan = out; S.plan = out; save();
+        $("#planBody", root).innerHTML = planHTML(out); bindDrills();
+      } catch (err) { toast(err.message, "err"); btn.classList.remove("busy"); btn.disabled = false; }
+    });
+    bindDrills();
+  };
+  const bindDrills = () => $$("[data-drill]", root).forEach(b => b.addEventListener("click", () => { S.plan = R.plan; S.drill = { index: +b.dataset.drill }; save(); go("/drill"); }));
+  bindPlan();
   const scoreSection = document.createElement("section");
   scoreSection.className = "card sec saved-score-panel";
   scoreSection.innerHTML = '<h3>Your leaderboard score</h3>';
   $(".sticky-bar", root).before(scoreSection);
-  mountPublishPanel(scoreSection, R, { api, esc });
+  if (R.stage === "custom") {
+    scoreSection.innerHTML = `<h3>Saved to your progress</h3><p class="muted" style="margin-top:6px">${R.leaderboardStatus === "private" ? "This report is saved privately in your account. Open it any time from Progress." : "Sign in to save reports like this to your progress."} Leaderboards are for startup pitches only.</p>`;
+  } else mountPublishPanel(scoreSection, R, { api, esc });
   $("#copyRw", root).addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(R.rewrite); toast("Copied"); }
     catch { const t = document.createElement("textarea"); t.value = R.rewrite; document.body.append(t); t.select(); try { document.execCommand("copy"); toast("Copied"); } catch { toast("Couldn't copy. Select the text instead.", "err"); } t.remove(); }
@@ -949,6 +1116,39 @@ function reportView(root) {
   }
 }
 
+const AGENT_NAMES = { listener: "Speech listener", delivery: "Delivery analyst", presence: "Presence analyst", judge: "Lead reviewer", evaluator: "Independent evaluator", referee: "Referee", verifier: "Quote verifier" };
+function presenceSection(P) {
+  if (!P) return `<section class="card sec presence-promo"><div class="sec-title"><h3>Body language</h3></div>
+    <p class="muted">Turn on the <b>camera coach</b> in your next interview for live tips on eye contact, posture and gestures, and a body-language score here. It runs on your device; video is never uploaded.</p></section>`;
+  const pct = v => (v == null ? "—" : `${v}%`);
+  const tile = (k, v, d) => `<div class="card tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+  const gesture = { natural: "Natural", still: "Very still", busy: "Busy", hidden: "Hidden" }[P.gestureLevel] || "—";
+  return `<section class="sec presence"><div class="sec-title"><h3>Body language</h3><span class="spacer"></span><span class="pill ${P.score >= 7 ? "ok" : P.score >= 5 ? "warn" : "bad"}">${P.score}/10</span></div>
+    <p class="small muted" style="margin-bottom:14px">Estimated on your device from ${fmt(P.sampledSec)} of camera time. Your video was never uploaded. These are coaching signals, not judgements of how you look.</p>
+    <div class="grid g4 tiles">
+      ${tile("Eye contact", pct(P.eyeContactPct), "Looking toward the camera")}
+      ${tile("Posture", pct(P.posturePct), "Upright, shoulders level")}
+      ${tile("Gestures", gesture, `Hands visible ${pct(P.handsVisiblePct)} of the time`)}
+      ${tile("Steadiness", pct(P.headSteadinessPct), `Smiling ${pct(P.smilePct)} · in frame ${pct(P.facePresentPct)}`)}
+    </div>
+    ${P.tips?.length ? `<div class="grid g3" style="margin-top:14px">${P.tips.map(t => `<div class="card"><h4>${esc(t.title)}</h4><p class="small muted" style="margin-top:6px">${esc(t.how)}</p></div>`).join("")}</div>` : `<p class="muted" style="margin-top:12px">Strong presence. Keep it up.</p>`}
+  </section>`;
+}
+function followupResult(r) {
+  const v = { strong: ["ok", "Strong answer"], okay: ["warn", "Getting there"], weak: ["bad", "Needs work"] }[r.verdict] || ["warn", "Reviewed"];
+  return `<div class="card followup-result"><div class="row"><span class="pill ${v[0]}">${v[1]}</span><b>${r.score}/10</b>${r.offline ? '<span class="small muted">Offline review</span>' : ""}</div>
+    ${r.reaction ? `<p class="quote" style="margin-top:10px">"${esc(r.reaction)}"</p>` : ""}
+    ${r.feedback ? `<p style="margin-top:8px"><b>Change:</b> ${esc(r.feedback)}</p>` : ""}
+    ${r.betterAnswer ? `<div class="qblock try">Try: "${esc(r.betterAnswer)}"</div>` : ""}</div>`;
+}
+function planHTML(out) {
+  const p = out.plan;
+  return `<ol class="agent-trace">${(out.trace || []).map(t => `<li><span class="pill">${esc(t.step)}</span> ${esc(t.detail)}</li>`).join("")}</ol>
+    <h4 style="margin-top:14px">Focus: ${esc(p.focus)}</h4><p class="muted" style="margin-top:4px">${esc(p.why)}</p>
+    <div class="grid g3" style="margin-top:12px">${p.drills.map((d, i) => `<div class="card drill-card"><span class="small muted">Drill ${i + 1} · ${d.seconds}s</span><h4>${esc(d.title)}</h4><p class="small" style="margin:6px 0 12px">${esc(d.prompt)}</p><button class="btn sm primary" data-drill="${i}">Start drill</button></div>`).join("")}</div>
+    <p class="small" style="margin-top:12px"><b>Milestone:</b> ${esc(p.milestone)}</p>${out.offline ? '<p class="small muted">Planned with rules because AI feedback is offline.</p>' : ""}`;
+}
+
 // Section: second judge. The in-house "Pitch Evaluator" agent (evidence-first rubric engine) runs with Meera.
 function agentCard(R) {
   const a = R.agent; if (!a) return "";
@@ -962,7 +1162,7 @@ function agentCard(R) {
     <div class="grid g4 tiles">
       <div class="card tile"><div class="k">Its verdict</div><div class="v" style="font-size:18px">${vp ? `<span class="pill ${vp[0]}">${vp[1]}</span>` : "—"}</div></div>
       <div class="card tile"><div class="k">Its overall</div><div class="v">${a.overall ?? "—"}</div></div>
-      <div class="card tile"><div class="k">Agreed with Meera</div><div class="v">${a.agreement != null ? `${a.agreement}%` : "—"}</div><div class="d">of checklist calls</div></div>
+      <div class="card tile"><div class="k">Agreed with main review</div><div class="v">${a.agreement != null ? `${a.agreement}%` : "—"}</div><div class="d">of checklist calls</div></div>
       <div class="card tile"><div class="k">Confidence</div><div class="v" style="text-transform:capitalize">${esc(a.confidence || "—")}</div></div>
     </div>
     ${a.redFlags?.length ? `<div class="msec"><h4>Claims or assumptions to check</h4><ul class="mlist">${a.redFlags.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
@@ -985,8 +1185,172 @@ async function statsView(root) {
   load(); const t = setInterval(load, 5000); onLeave(() => clearInterval(t));
 }
 
+// ======================= SCENARIO: review the practice the AI built for you =======================
+function scenarioView(root) {
+  const sc = S.scenario;
+  if (!sc) return go("/");
+  const draft = JSON.parse(JSON.stringify(sc));
+  const limits = [60, 90, 120, 180, 240, 300, 420, 600];
+  const render = () => {
+    root.innerHTML = `<div class="head"><p class="eyebrow">${esc(sc.emoji || "🎯")} YOUR PRACTICE${sc.id === "ai" ? " · BUILT BY AI FROM YOUR DESCRIPTION" : ""}</p><h2>${esc(draft.name)}</h2>
+      <p>${esc(draft.goal)}</p></div>
+      <div class="grid g2">
+        <section class="card"><div class="sec-title"><h3>What you'll be judged on</h3></div>
+          <p class="small muted" style="margin-bottom:10px">Edit anything. ★ marks the essentials. Your coach and reviewer will use exactly this list.</p>
+          <ul class="scn-items">${draft.items.map((it, i) => `<li><input class="field" data-title="${i}" value="${esc(it.title)}" maxlength="60" aria-label="Point ${i + 1} title">
+            <label class="small"><input type="checkbox" data-must="${i}" ${it.must ? "checked" : ""}> ★ Key</label>
+            <button class="iconbtn" data-del="${i}" aria-label="Remove point" ${draft.items.length <= 3 ? "disabled" : ""}>${icon("x", 14)}</button>
+            <p class="small muted">${esc(it.good)}</p></li>`).join("")}</ul>
+          ${draft.items.length < 8 ? `<form class="typebox" id="addPoint" style="margin-top:10px"><input id="newPoint" placeholder="Add a point you want feedback on…" maxlength="60"><button class="btn" type="submit">Add</button></form>` : ""}
+        </section>
+        <section class="card" style="display:flex;flex-direction:column;gap:14px">
+          <div class="row" style="gap:14px"><div class="avatar meera lg">${esc(scenarioTrack(draft).persona.initials)}</div>
+            <div><div class="meera-name">${esc(draft.personaName)} <span class="ai-label">AI ${esc(draft.personaRole)}</span></div><div class="small muted">Your fictional practice partner: ${esc(draft.audience)}</div></div></div>
+          <p class="quote">"${esc(draft.intro)}"</p>
+          <label class="small"><b>Time limit</b><br><select class="field" id="limit" style="max-width:200px">${limits.map(l => `<option value="${l}" ${l === draft.timeLimitSec ? "selected" : ""}>${mins(l)}</option>`).join("")}</select></label>
+          <label class="small"><b>Practice language</b><br>${langToggle()}</label>
+          ${draft.tips ? `<p class="small"><b>Tip:</b> ${esc(draft.tips)}</p>` : ""}
+          <div class="actions" style="margin-top:auto;flex-wrap:wrap">
+            <a class="btn ghost" href="#/">Describe it differently</a>
+            <button class="btn" id="goWarm">Warm up with the coach</button>
+            <button class="btn primary" id="goLive">Start the live practice ${icon("arrowRight", 15)}</button></div>
+        </section>
+      </div>`;
+    $$("[data-title]", root).forEach(el => el.addEventListener("input", () => { draft.items[+el.dataset.title].title = el.value; }));
+    $$("[data-must]", root).forEach(el => el.addEventListener("change", () => { draft.items[+el.dataset.must].must = el.checked; }));
+    $$("[data-del]", root).forEach(el => el.addEventListener("click", () => { draft.items.splice(+el.dataset.del, 1); render(); }));
+    $("#addPoint", root)?.addEventListener("submit", (e) => {
+      e.preventDefault(); const v = $("#newPoint", root).value.trim(); if (!v) return;
+      draft.items.push({ id: `own${Date.now().toString(36)}`, title: v.slice(0, 60), good: `Explain ${v.toLowerCase()} clearly and specifically.`, must: false });
+      render();
+    });
+    $("#limit", root).addEventListener("change", (e) => { draft.timeLimitSec = +e.target.value; });
+    bindLang(root);
+    const commit = () => {
+      draft.items = draft.items.filter(i => i.title.trim());
+      if (!draft.items.some(i => i.must)) draft.items[0].must = true;
+      if (JSON.stringify(draft) !== JSON.stringify(S.scenario)) { S.coach = null; S.show = null; }
+      S.scenario = draft; S.stage = "custom"; save();
+    };
+    $("#goWarm", root).addEventListener("click", () => { commit(); go("/coach"); });
+    $("#goLive", root).addEventListener("click", () => { commit(); go("/briefing"); });
+  };
+  render();
+}
+
+// ======================= DRILL: one focused rep on one checklist point =======================
+function drillView(root) {
+  const plan = S.plan?.plan, i = S.drill?.index ?? 0, d = plan?.drills?.[i];
+  const stage = trackOf(S.plan?.stage || S.stage, S.plan?.scenario || S.scenario);
+  if (!d || !stage) return go("/progress");
+  const item = stage.items.find(x => x.id === d.checklistId);
+  let left = d.seconds, timer = null;
+  root.innerHTML = `<div class="head"><p class="eyebrow">DRILL ${i + 1} OF ${plan.drills.length} · ${esc(stage.name).toUpperCase()}</p><h2>${esc(d.title)}</h2>
+      <p>${esc(d.prompt)}</p></div>
+    <div class="grid g2">
+      <section class="card">
+        <div class="row"><span class="pill accent">${esc(item?.title || "")}</span><span class="spacer"></span><span class="pitch-time" id="dTimer">${fmt(left)}</span></div>
+        <p class="small muted" style="margin:10px 0">Aim for: ${esc(item?.good || "")}</p>
+        <textarea class="field" id="dAnswer" maxlength="4000" placeholder="Speak or type your answer…"></textarea>
+        <div class="row" style="margin-top:10px"><button class="btn" id="dMic" type="button">${icon("mic", 15)} Speak</button>
+          <button class="btn" id="dStart" type="button">${icon("clock", 15)} Start ${d.seconds}s timer</button><span class="spacer"></span>
+          <button class="btn primary" id="dSend" type="button">Get feedback</button></div>
+      </section>
+      <section class="card" id="dResult"><h3>How to use this drill</h3><p class="muted" style="margin-top:8px">Say it out loud once, get feedback, then try again with the suggested line. Short, repeated reps build confidence faster than one long practice.</p></section>
+    </div>
+    <div class="actions"><a class="btn ghost" href="#/report">Back to report</a>${i + 1 < plan.drills.length ? `<button class="btn" id="dNext">Next drill ${icon("arrowRight", 15)}</button>` : `<button class="btn" id="dDone">Finish: full interview ${icon("arrowRight", 15)}</button>`}</div>`;
+  const field = $("#dAnswer", root);
+  onLeave(bindDictation($("#dMic", root), field, { SR, lang: () => S.micLang, whisper: WHISPER(), toast, sid: SID }));
+  onLeave(() => clearInterval(timer));
+  $("#dStart", root).addEventListener("click", (e) => {
+    clearInterval(timer); left = d.seconds; e.currentTarget.disabled = true;
+    timer = setInterval(() => { left--; $("#dTimer", root).textContent = fmt(left); if (left <= 0) { clearInterval(timer); toast("Time! Get your feedback when ready."); } }, 1000);
+  });
+  $("#dSend", root).addEventListener("click", async (e) => {
+    const btn = e.currentTarget; btn.classList.add("busy"); btn.disabled = true; clearInterval(timer);
+    try {
+      const r = await callWithRetry("/api/drill", { ...tb(stage), checklistId: d.checklistId, transcript: field.value, sid: SID });
+      const v = { nailed: ["ok", "Nailed it"], close: ["warn", "Close"], retry: ["bad", "Try again"] }[r.verdict] || ["warn", "Reviewed"];
+      $("#dResult", root).innerHTML = `<div class="row"><span class="pill big ${v[0]}">${v[1]}</span><b style="font-size:22px">${r.score}/10</b>${r.offline ? '<span class="small muted">Offline review</span>' : ""}</div>
+        ${r.whatWorked ? `<p style="margin-top:12px"><b>What worked:</b> ${esc(r.whatWorked)}</p>` : ""}
+        ${r.improve ? `<p style="margin-top:8px"><b>Change one thing:</b> ${esc(r.improve)}</p>` : ""}
+        ${r.tryLine ? `<div class="qblock try">Try: "${esc(r.tryLine)}"</div><button class="btn sm" id="dListen">${icon("volume", 14)} Listen</button>` : ""}`;
+      $("#dListen", root)?.addEventListener("click", () => tts.speak(r.tryLine, "coach"));
+      S.drillLog = [...(S.drillLog || []), { id: d.checklistId, score: r.score, at: Date.now() }].slice(-30); save();
+    } catch (err) { toast(err.message, "err"); }
+    btn.classList.remove("busy"); btn.disabled = false; $("#dStart", root).disabled = false;
+  });
+  $("#dNext", root)?.addEventListener("click", () => { S.drill = { index: i + 1 }; save(); router(); });
+  $("#dDone", root)?.addEventListener("click", () => { S.stage = stage.id; S.show = newShow(stage.id, "ready"); save(); go("/briefing"); });
+}
+
+// ======================= PROGRESS: history, saved reports, plan agent, account =======================
+async function progressView(root) {
+  root.innerHTML = `<div class="head"><h2>Your progress</h2><p>Your practice history, saved reports and next steps.</p></div><div id="pg"><div class="shimmer" style="width:100%;height:120px"></div></div>`;
+  const box = $("#pg", root);
+  let me = null; try { me = (await api("/api/auth/me")).user; } catch {}
+  const spark = (pts) => {
+    if (pts.length < 2) return "";
+    const w = 260, h = 60, max = 100, step = w / (pts.length - 1);
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${(i * step).toFixed(1)} ${(h - (p / max) * h).toFixed(1)}`).join(" ");
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-label="Score trend"><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  };
+  if (!me) {
+    const hist = S.history || [];
+    box.innerHTML = `<section class="card"><h3>Keep your history across devices</h3><p class="muted" style="margin-top:6px">Sign in to save every AI-reviewed report, see your trend, and get a practice plan based on all your attempts.</p>
+      <div class="actions" style="justify-content:flex-start">${HEALTH_V.google ? `<a class="btn primary" href="/auth/google?return=/%23/progress">Continue with Google</a>` : ""}<a class="btn" href="/sign-in">Sign in</a><a class="btn" href="/sign-up">Create account</a></div></section>
+      ${hist.length ? `<section class="card" style="margin-top:16px"><h3>This session</h3>${spark(hist.map(h => h.overall).reverse())}<ul class="mlist">${hist.map(h => `<li>${esc(stageById(h.stage)?.name || h.stage)} · <b>${h.overall}</b> · ${new Date(h.at).toLocaleTimeString()}</li>`).join("")}</ul></section>` : ""}`;
+    return;
+  }
+  let attempts = [];
+  try { attempts = (await api("/api/me/attempts")).attempts || []; } catch (e) { box.innerHTML = `<p class="flag">${esc(e.message)}</p>`; return; }
+  const byStage = {};
+  for (const a of attempts) (byStage[a.stage] ||= []).push(a);
+  const best = attempts.reduce((m, a) => Math.max(m, a.score), 0);
+  box.innerHTML = `
+    <div class="grid g4 tiles">
+      <div class="card tile"><div class="k">Saved reports</div><div class="v">${attempts.length}</div></div>
+      <div class="card tile"><div class="k">Best score</div><div class="v">${attempts.length ? best : "—"}</div></div>
+      <div class="card tile"><div class="k">Latest</div><div class="v">${attempts[0]?.score ?? "—"}</div><div class="d">${attempts[0] ? new Date(attempts[0].created_at).toLocaleDateString() : ""}</div></div>
+      <div class="card tile"><div class="k">Signed in as</div><div class="v" style="font-size:18px">${esc(me.displayName || me.username)}</div><div class="d">${me.google ? "Google account" : "Username account"}</div></div>
+    </div>
+    ${Object.entries(byStage).map(([st, list]) => `<section class="card sec" style="margin-top:16px"><div class="sec-title"><h3>${esc(stageById(st)?.name || st)}</h3><span class="spacer"></span>${spark(list.map(a => a.score).reverse())}</div>
+      <table class="ct"><thead><tr><th>Date</th><th>Score</th><th>Input</th><th></th></tr></thead><tbody>
+      ${list.map(a => `<tr><td>${new Date(a.created_at).toLocaleString()}</td><td><b>${a.score}</b></td><td>${esc(a.input_mode)}${a.published ? " · public" : ""}</td><td><button class="btn sm" data-open="${esc(a.id)}">Open report</button></td></tr>`).join("")}
+      </tbody></table></section>`).join("") || `<section class="card" style="margin-top:16px"><p class="muted">No saved reports yet. Finish an interview while signed in and it will appear here.</p><div class="actions" style="justify-content:flex-start"><a class="btn primary" href="#/stage">Start practising</a></div></section>`}
+    <section class="card sec" style="margin-top:16px"><div class="sec-title"><h3>Plan my next practice</h3><span class="spacer"></span><span class="pill accent">AI practice agent</span></div>
+      <div class="row"><select class="field" id="planStage" style="max-width:220px">${STAGES.map(x => `<option value="${x.id}" ${x.id === (attempts[0]?.stage || S.stage) ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+      <button class="btn primary" id="pPlan">Build my plan</button></div><div id="pPlanBody" style="margin-top:12px"></div></section>
+    <section class="card sec danger-zone" style="margin-top:16px"><h3>Your data</h3><p class="small muted" style="margin-top:6px">Deleting your account permanently removes your sign-in, saved reports and any public leaderboard scores. <a class="linkbtn" href="/privacy">Privacy policy</a></p>
+      <button class="btn" id="delAcct" style="margin-top:10px">Delete my account and data</button></section>`;
+  $$("[data-open]", box).forEach(b => b.addEventListener("click", async () => {
+    try {
+      const { attempt } = await api(`/api/me/attempts/${b.dataset.open}`);
+      S.report = { ...attempt.report, stage: attempt.stage, attemptId: attempt.id, leaderboardStatus: attempt.published ? "published" : "private", spoken: true, at: attempt.created_at };
+      save(); go("/report");
+    } catch (e) { toast(e.message, "err"); }
+  }));
+  $("#pPlan", box).addEventListener("click", async (e) => {
+    const btn = e.currentTarget; btn.classList.add("busy"); btn.disabled = true;
+    try {
+      const out = await callWithRetry("/api/agent/plan", { stage: $("#planStage", box).value, recent: S.history || [], sid: SID });
+      S.plan = out; save(); $("#pPlanBody", box).innerHTML = planHTML(out);
+      $$("[data-drill]", box).forEach(d => d.addEventListener("click", () => { S.drill = { index: +d.dataset.drill }; save(); go("/drill"); }));
+    } catch (err) { toast(err.message, "err"); }
+    btn.classList.remove("busy"); btn.disabled = false;
+  });
+  $("#delAcct", box).addEventListener("click", async () => {
+    if (!confirm("Permanently delete your account, saved reports and leaderboard scores? This can't be undone.")) return;
+    try {
+      const res = await fetch("/api/me", { method: "DELETE", credentials: "same-origin" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't delete your account.");
+      document.dispatchEvent(new Event("clarity:signout")); toast("Your account and data were deleted.");
+    } catch (e) { toast(e.message, "err"); }
+  });
+}
+
 const leaderboardView = root => renderLeaderboard(root, { api, esc, stages: STAGES, onLeave });
-const ROUTES = { "/": home, "/stage": stageView, "/mode": modeView, "/coach": coachView, "/briefing": briefingView, "/showtime": showtimeView, "/report": reportView, "/stats": statsView, "/leaderboard": leaderboardView };
+const ROUTES = { "/": home, "/stage": stageView, "/mode": modeView, "/coach": coachView, "/briefing": briefingView, "/showtime": showtimeView, "/report": reportView, "/stats": statsView, "/leaderboard": leaderboardView, "/drill": drillView, "/progress": progressView, "/scenario": scenarioView };
 
 // ---------- boot ----------
 const params = new URLSearchParams(location.search);
@@ -998,7 +1362,8 @@ try { if (!sessionStorage.getItem("sayso.visit")) { sessionStorage.setItem("says
 const HEALTH = api("/api/health").catch(() => ({}));
 HEALTH.then(h => { HEALTH_V = h || {}; TTS_MODE = h.tts || "browser"; if (!h.ai) { const p = $("#modePill"); p.hidden = false; p.textContent = "Offline mode"; p.title = "No AI key on the server: simple keyword rules are used."; } }).catch(() => {});
 window.addEventListener("hashchange", router);
+document.addEventListener("clarity:navigate", (e) => go(e.detail));
 document.addEventListener("clarity:signout", () => {
-  S.coach = null; S.show = null; S.report = null; save(); go("/");
+  S.coach = null; S.show = null; S.report = null; S.history = []; save(); go("/");
 });
-router();
+Promise.race([HEALTH, sleep(1500)]).finally(router);

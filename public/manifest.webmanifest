@@ -1,0 +1,10 @@
+{
+  "name": "Clarity AI",
+  "short_name": "Clarity",
+  "description": "Rehearse any big conversation with an AI coach.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4eb",
+  "theme_color": "#17645a",
+  "icons": [{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
+}

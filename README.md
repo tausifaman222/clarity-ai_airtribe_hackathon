@@ -1,110 +1,281 @@
-# Sayso: AI Communication Simulator (MVP: Pitch an Idea)
+<div align="center">
 
-**Say it so it lands.** Founders rehearse a startup pitch out loud with an AI coach, then pitch to an AI investor
-(Meera Kapoor, fictional) and get a full report. It judges substance and delivery, never grammar.
-English, Hindi, or Hinglish; the AI replies in the mix you used.
+<img src="public/icon-512.png" width="88" alt="Clarity AI logo">
 
-Flow: Home → Stage (Idea / Pre-seed / Seed / Series A) → Mode → **Coach Room** (live checklist + investor verdict)
-or **Showtime** (briefing → 3-2-1 → 2-minute pitch) → **Report** (sections A–H).
+# Clarity AI
 
-## Deploy on Replit (about 5 minutes)
-1. Create a Repl → **Import** → upload this folder (you don't need `node_modules`). Press **Run**.
-2. Open **Secrets** and add:
-   - `LLM_API_KEY`: your Anthropic key. The default model is `claude-sonnet-5-5`.
-   - Optional: `LLM_MODEL`, to override the model.
-   - Other providers: set `LLM_PROVIDER=openai`, `LLM_BASE_URL` (for example `https://api.x.ai/v1` for Grok),
-     `LLM_MODEL` (that provider's model id) and `LLM_API_KEY`. Any OpenAI-compatible API works.
-   - Optional: `RATE_LIMIT`, the number of AI calls per IP per 10 minutes (default 80).
-   - **ElevenLabs voices (recommended):** `ELEVENLABS_API_KEY`. Optional extras:
-     - `ELEVENLABS_VOICE_MEERA` and `ELEVENLABS_VOICE_COACH`: voice IDs from your ElevenLabs Voice Library. Pick
-       Indian-accent voices that speak Hindi well. The defaults are ElevenLabs' stock voices.
-     - `ELEVENLABS_MODEL`: default `eleven_flash_v2_5`, which is fast and handles Hindi and Hinglish. For richer
-       but slower audio, use `eleven_multilingual_v2`.
-     - The key stays on the server, and repeated lines are cached. If ElevenLabs fails or runs out of credits, the
-       app switches to the browser voice automatically.
-3. Click **Deploy**. Pick **Reserved VM** if you want the usage counter to survive redeploys.
-4. Open the URL in **Chrome** (voice needs it; other browsers can type) and allow the microphone.
+**Speak confidently. Be understood.**
 
-Check it is working: `GET /api/health` returns `"ai": true`. With no key, the app still runs in a clearly labelled
-**Offline mode** that uses simple keyword rules. Use that for smoke tests only, never for judging.
+Rehearse any high-stakes conversation out loud with a team of AI agents.
+Feedback on *what you say and how you say it*, never your grammar or accent.
 
-## Links
-| Link | What |
+[![CI](https://github.com/tausifaman222/clarity-ai_airtribe_hackathon/actions/workflows/ci.yml/badge.svg)](https://github.com/tausifaman222/clarity-ai_airtribe_hackathon/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-17645a.svg)](LICENSE)
+![Node 20+](https://img.shields.io/badge/node-%E2%89%A520-17645a.svg)
+![Languages](https://img.shields.io/badge/languages-16-17645a.svg)
+![MCP](https://img.shields.io/badge/MCP-server-17645a.svg)
+
+[**Live demo**](https://clarityai.geekypmtausif.com) · [**Setup in 10 minutes**](SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Launch kit](docs/LAUNCH.md)
+
+<sub>Built at the <b>Airtribe AI Builders Day</b> hackathon · Made with ❤️ by Ashish &amp; Tausif</sub>
+
+<img src="docs/screenshots/01-home.png" alt="Clarity AI home page" width="900">
+
+</div>
+
+---
+
+## Table of contents
+
+- [Why Clarity AI](#why-clarity-ai)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [The agent team](#the-agent-team)
+- [Screenshots](#screenshots)
+- [Quick start](#quick-start)
+- [Deploy](#deploy)
+- [Configuration](#configuration)
+- [Use it from AI assistants (MCP)](#use-it-from-ai-assistants-mcp)
+- [Privacy and security](#privacy-and-security)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Credits and license](#credits-and-license)
+
+## Why Clarity AI
+
+Most people know *what* they want to say. The hard part is saying it clearly, under pressure, to an interviewer, an investor, a manager or a room full of people. Practising alone gives no feedback. Practising with friends is awkward and rarely honest.
+
+Clarity AI is a private rehearsal room:
+1. Describe your situation in your own words, in any of 16 languages.
+2. Rehearse out loud with a realistic practice partner.
+3. Get specific, evidence-checked feedback within seconds.
+
+It never judges grammar, accent or appearance, only substance and delivery.
+
+## Features
+
+| | Feature | Details |
+|---|---|---|
+| 🎯 | **Practise anything** | A scenario designer agent turns a plain description (*"PM interview at a fintech next week"*) into a custom checklist, practice partner and time limit. There are also 8 templates and a stage-aware startup-pitch track. |
+| 🗣️ | **Voice-first, any browser** | Live captions in Chrome and Edge; open-source **Whisper** transcription in Safari and Firefox. Natural **ElevenLabs** voices, with the browser voice as a fallback. |
+| 📷 | **On-device camera coach** | **MediaPipe** face and pose landmarks give live nudges on eye contact, posture, gestures and steadiness, plus a body-language score. Video never leaves the device. |
+| 🧠 | **Multi-agent review** | A lead reviewer and an independent evaluator run in parallel. A referee merges their reviews, and a quote verifier checks every quote against your transcript. |
+| 🔁 | **Agentic practice loop** | A planner reads your history, finds recurring gaps and sets three drills. A drill coach and a follow-up interviewer grade each rep. |
+| 🌍 | **16 languages** | English (IN/US/UK), Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Spanish, French, German, Portuguese, Arabic, Indonesian, Japanese and Chinese. The AI replies in yours. |
+| 📈 | **Progress** | Google or username sign-in, saved reports, trends, PDF export, an opt-in leaderboard and one-click account deletion. |
+| 🔌 | **MCP server** | Claude, ChatGPT, Cursor and custom agents can call Clarity AI's tools through the Model Context Protocol at `/mcp`. |
+| 🧩 | **Open-source first** | Open-weight `gpt-oss-120b` and Whisper on Groq, Gemini as a fallback, and MediaPipe. It works with any OpenAI-compatible API, and with no key it runs in a clearly labelled offline mode. |
+
+## How it works
+
+```mermaid
+flowchart LR
+  U([You]) -->|describe| SD[Scenario designer]
+  SD --> PLAN[Checklist + practice partner]
+  PLAN --> WU[Warm-up coach]
+  WU --> LIVE[Live practice]
+  LIVE -->|speech| SL[Speech listener<br/>Web Speech · Whisper]
+  LIVE -->|camera, on device| PA[Presence analyst<br/>MediaPipe]
+  SL --> DA[Delivery analyst]
+  DA --> J[Lead reviewer]
+  DA --> E[Independent evaluator]
+  PA --> J
+  J --> R{Referee}
+  E --> R
+  R --> V[Quote verifier]
+  V --> REP[Report]
+  REP --> P[Practice planner]
+  P --> D[Drill coach]
+  REP --> F[Follow-up interviewer]
+```
+
+## The agent team
+
+Each report is produced by several specialised agents, coordinated by the server. Every report shows its own trace under **"How this feedback was made"**, and the live manifest is at [`GET /api/agents`](docs/API.md#agents).
+
+| Agent | Type | Responsibility |
+|---|---|---|
+| Scenario designer | LLM | Understands the use case and builds a validated practice plan |
+| Warm-up coach | LLM | Coaches one point at a time and tracks checklist coverage |
+| Practice partner | LLM + voice | Plays the listener: investor, hiring manager, client, examiner… |
+| Speech listener | Web Speech / Whisper | Converts speech to text |
+| Delivery analyst | Deterministic | Pace, fillers, hedges, pauses |
+| Presence analyst | On-device vision | Eye contact, posture, gestures, steadiness |
+| Lead reviewer | LLM | Scores, checklist evidence, fixes, toughest question, rewrite |
+| Independent evaluator | LLM | Stricter evidence-only second review and red flags |
+| Referee | Deterministic | Merges both reviews and enforces the scoring formula |
+| Quote verifier | Deterministic | Checks quotes against the transcript and flags paraphrases |
+| Practice planner | LLM + tools | History → analysis → plan → validation |
+| Drill coach | LLM | Grades focused 60–90 s reps |
+| Follow-up interviewer | LLM | Grades your answer to the hardest question |
+
+Scores are computed by the server, never trusted from a model:
+
+```
+overall = round((structure·0.3 + clarity·0.25 + substance·0.3 + delivery·0.15) × 10), minus 10 if a ★ point is missing
+```
+
+## Screenshots
+
+| Practise anything | AI-built practice plan |
 |---|---|
-| `/` | Home |
-| `/?demo=1` | Hidden live-demo backup: jumps to the Seed Showtime briefing with a sample Hinglish pitch pre-filled (fictional company, labelled "Sample" on the report) |
-| `/#/stats` | Proof of Life: anonymous live counts (visitors, coach turns, verdicts, reports). It stores no transcripts and no personal data |
-| `/api/health` | Shows whether the AI is configured, which voice is in use (`"tts": "elevenlabs"` or `"browser"`) |
+| <img src="docs/screenshots/02-practise-anything.png" alt="Describe your situation"> | <img src="docs/screenshots/03-scenario.png" alt="Editable scenario"> |
+| **Live practice with camera coach** | **Report** |
+| <img src="docs/screenshots/04-live-practice.png" alt="Live practice"> | <img src="docs/screenshots/05-report.png" alt="Feedback report"> |
+| **Body language (on device)** | **Agent trace** |
+| <img src="docs/screenshots/06-body-language.png" alt="Body language scores"> | <img src="docs/screenshots/07-agent-trace.png" alt="How this feedback was made"> |
+| **Practice plan agent** | **Mobile** |
+| <img src="docs/screenshots/08-practice-plan.png" alt="Practice plan"> | <img src="docs/screenshots/09-mobile-home.png" alt="Mobile" width="260"> |
 
-## How it's built
-- **Express + plain JavaScript** (no build step), with the dark design system from the spec (Inter, `#7C5CFF` accent, 88px mic).
-- **Single source of truth:** `public/rubrics.js` holds the stage checklists (★ must-haves), the pro tips, and the filler
-  and hedge lists. Both the browser and the server import it, so tooltips, the coach panel, the briefing, the report and
-  all three prompts stay in sync.
-- **API routes:**
-  - `POST /api/coach {stage, history, userText}` → `{reply, covered[], nextFocus}`
-  - `POST /api/verdict {stage, history}` → the coach verdict
-  - `POST /api/judge {stage, transcript, metrics}` → the full report
-  - The prompts are taken word for word from the spec.
-- **Strict JSON:** the server strips code fences, parses inside try/catch, and retries once with "Return only valid JSON."
-  It then validates the shape and enforces the scoring itself:
-  - overall = round((structure×0.3 + clarity×0.25 + substance×0.3 + delivery×0.15)×10), minus 10 if a ★ item is missing.
-  - The verdict is then recomputed from that rule, so the model can't inflate it.
-- **Voice:**
-  - Input uses `webkitSpeechRecognition` (continuous, interim results, `en-IN` / `hi-IN` toggle) and records a timestamp
-    for each final segment. A Web Audio `AnalyserNode` drives the live mic ring.
-  - Output uses ElevenLabs through `POST /api/tts` (Meera and the Coach each have their own voice). Without a key it
-    uses the browser's `speechSynthesis` at rate 1.05, with an `en-IN` voice, or `hi-IN` when the reply is mostly Devanagari.
-  - The mic stops while the AI speaks and resumes afterwards.
-- **Metrics** (computed client-side and re-checked on the server): duration, word count, WPM, fillers, hedges, and long
-  pauses (gaps over 2.5s between segments).
-- **No auth, no database:** all user state lives in `sessionStorage`, so a refresh keeps your report. The only thing
-  written to disk is the anonymous counter in `data/stats.json`.
+## Quick start
 
-## Two judges: Meera + the Pitch Evaluator agent
-Every Showtime pitch is judged by two agents in parallel, using the same LLM key:
-- **Meera:** gives the investor reaction, the fixes and the rewrite.
-- **Pitch Evaluator:** an evidence-first rubric engine. It marks an item covered only if it can quote the founder, caps vague claims, and lists red flags.
+You need **Node 20+**. A free Groq key gives you real AI feedback; without it the app still runs in offline mode.
 
-The server merges the two:
-- Scores are averaged.
-- Where the judges disagree on a checklist item, it leans cautious.
-- The spec formula re-computes the overall score and verdict.
-
-The report shows the evaluator's verdict, its agreement with Meera, its confidence, and its red flags. If the evaluator fails, the report uses Meera alone and says so.
-
-## Edge cases covered
-- Mic denied: a card with fix steps, a Retry button, and the type fallback.
-- Browser without speech recognition: the Chrome banner, and the app still works by typing.
-- A pitch under 20 words skips the LLM and shows "Meera didn't hear enough to judge."
-- LLM error: the toast "Our investor stepped out for a second. Retrying…", then one automatic retry, then a Retry button.
-  The saved pitch is never lost.
-- Keyboard: every control is reachable, and Space toggles the mic in both rooms.
-- Layout tested at 1366px and 375px.
-
-## Honest limits
-- Speech recognition quality depends on the browser (Chrome is best). Hindi in Devanagari works through the `hi-IN` toggle.
-- Report time depends on the model: usually a few seconds, sometimes longer.
-- Meera Kapoor and Northstar Ventures are fictional. The AI gives practice feedback, not investment advice.
-
-## Automated regression tests
-
-Replit uses the configured system Chromium (with its Nix libraries). On other hosts without `chromium` on PATH, install the Playwright browser once after installing npm dependencies:
-
-```sh
-npm run test:install
+```bash
+git clone https://github.com/tausifaman222/clarity-ai_airtribe_hackathon.git clarity-ai
+cd clarity-ai
+cp .env.example .env            # set LLM_API_KEY (free at https://console.groq.com)
+npm install
+node --env-file=.env server.js  # → http://localhost:5000
 ```
 
-Then run all checks:
+Accounts, history and the leaderboard need Postgres:
 
-```sh
-npm test
+```bash
+# in .env: DATABASE_URL=postgres://...  and  SESSION_SECRET=<32+ random characters>
+npm run db:migrate
 ```
 
-- `npm run test:api` runs API checks only (no browser installation required).
-- `npm run test:browser` runs the Chromium typed-pitch journey.
-- The suite starts its own offline server on port **5011**, never reuses a running server, and leaves the live preview and Groq configuration untouched. Keep port 5011 free.
-- Tests copy application sources to a temporary directory, so test counters do not affect `data/stats.json`. The copy is removed when the test server stops.
-- The child server inherits no API keys or provider settings, and outbound provider `fetch` calls are blocked. Browser tests block external requests and disable speech APIs; they exercise real local API responses, not mocked reports.
-- Coverage includes all four startup stages, offline response labels, two-user-turn verdict validation, invalid/missing stages, empty coach input, the 20-word pitch boundary, stage selection, typed submission, and report persistence after reload.
-- Failure screenshots and traces are saved under `generated-artifacts/test-results/` (excluded from Git and publishing). On other Linux hosts, Chromium may require system libraries; use Playwright's documented browser prerequisites for that host.
+Open `http://localhost:5000/api/health?deep=1` to check that every integration is configured.
+
+## Deploy
+
+| Host | One step |
+|---|---|
+| **Vercel** | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftausifaman222%2Fclarity-ai_airtribe_hackathon&env=LLM_PROVIDER,LLM_API_KEY,SESSION_SECRET&envDescription=Set%20LLM_PROVIDER%3Dgroq%20and%20a%20free%20Groq%20key&envLink=https%3A%2F%2Fgithub.com%2Ftausifaman222%2Fclarity-ai_airtribe_hackathon%2Fblob%2Fmain%2FSETUP.md) |
+| **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/tausifaman222/clarity-ai_airtribe_hackathon) |
+| **Replit** | Import from GitHub; `.replit` is included |
+| **Docker** (Railway, Fly.io, Cloud Run, a VPS) | `docker build -t clarity-ai . && docker run -p 5000:5000 --env-file .env clarity-ai` |
+
+[SETUP.md](SETUP.md) walks through each host, Google sign-in, ElevenLabs and pointing your own subdomain (for example on Hostinger).
+
+## Configuration
+
+All configuration is through environment variables; see [`.env.example`](.env.example).
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `LLM_PROVIDER` | ✅ | `groq` (default open models), `gemini`, `openrouter`, `anthropic` or `openai` (any compatible API) |
+| `LLM_API_KEY` | ✅ | Key for the provider above |
+| `LLM_MODEL`, `LLM_BASE_URL` | | Override the preset model or endpoint |
+| `FALLBACK_LLM_BASE_URL`, `FALLBACK_LLM_API_KEY`, `FALLBACK_LLM_MODEL` | | Backup provider, used automatically on failures or rate limits |
+| `DATABASE_URL` (or `POSTGRES_URL`) | for accounts | Postgres connection string |
+| `SESSION_SECRET` | for accounts | 32+ random characters |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_URL` | | Google sign-in |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_MEERA`, `ELEVENLABS_VOICE_COACH` | | Natural voices |
+| `STT_API_KEY`, `STT_MODEL` | | Whisper speech-to-text (reuses the Groq key by default) |
+| `MCP_TOKEN` | | Require a Bearer token on `/mcp` |
+| `RATE_LIMIT` | | AI calls per IP per 10 minutes (default 80) |
+
+## Use it from AI assistants (MCP)
+
+Clarity AI is a remote MCP server (Streamable HTTP, JSON-RPC 2.0). To connect it:
+1. In your MCP-capable client, add a remote server with the URL `https://YOUR-DOMAIN/mcp`.
+2. If you've set `MCP_TOKEN`, add it as the Bearer token.
+
+| Tool | What it does |
+|---|---|
+| `list_scenarios` | Templates and startup-pitch stages |
+| `design_scenario` | Builds a practice from a plain-language description |
+| `coach_turn` | One coaching reply and checklist coverage |
+| `review_practice` | Multi-agent review of a full transcript |
+| `plan_practice` | Next session plan with 3 drills |
+| `grade_answer` | Grades an answer to a follow-up question |
+
+## Privacy and security
+
+- **Video** is analysed in the browser; only summary numbers (such as "eye contact 64%") are sent.
+- **Audio** is transcribed and not stored. In Chrome, captions come from the browser itself.
+- **Reports:** guest reports stay in the browser tab. Signed-in reports are private unless you publish one to the leaderboard.
+- **Accounts:**
+  - Passwords are hashed with scrypt.
+  - Sessions are random tokens in HttpOnly, SameSite cookies, and only their hashes are stored.
+  - Google sign-in uses OAuth 2.0 with PKCE and a signed state cookie.
+- **Abuse protection:** rate limiting on AI routes, login lockout after repeated failures, and same-origin checks on account changes.
+- **Deletion:** users can delete their account and all data in one click.
+- See [SECURITY.md](SECURITY.md) to report a vulnerability, and the in-app [privacy policy](public/privacy.html).
+
+## Project structure
+
+```
+├── server.js              # Express app: routes and multi-agent orchestration
+├── api/index.js           # Vercel serverless entry (re-exports the app)
+├── llm.js                 # Provider-agnostic LLM client, presets and fallback
+├── offline.js             # Labelled keyword fallback when no AI key is set
+├── server/
+│   ├── agents.js          # Practice planner, drill coach, follow-up interviewer
+│   ├── agent-team.js      # Agent manifest and quote verifier
+│   ├── account-auth.js    # Username accounts and sessions
+│   ├── google-auth.js     # Google OAuth (PKCE)
+│   ├── community.js       # Saved reports and leaderboard
+│   ├── voice.js           # ElevenLabs TTS and Whisper STT
+│   ├── mcp.js             # MCP server
+│   ├── stats.js           # Anonymous usage counters
+│   ├── tracks.js          # Pitch stages and custom scenarios
+│   └── db.js              # Postgres pool
+├── public/                # Plain-JS single-page app (no build step)
+│   ├── app.js             # Practice rooms, report, drills, progress
+│   ├── home.js            # Landing and "practise anything"
+│   ├── scenarios.js       # Scenario templates and validation (shared with the server)
+│   ├── rubrics.js         # Startup-pitch stage rubrics (shared)
+│   ├── presence*.js       # On-device camera coach
+│   └── speech.js          # Recorder and Whisper client
+├── db/schema.sql          # Idempotent schema; apply with `npm run db:migrate`
+├── tests/                 # node:test unit tests and Playwright API/browser tests
+├── docs/                  # Architecture, API, launch kit, screenshots
+└── vercel.json · Dockerfile · render.yaml · .replit
+```
+
+## Testing
+
+```bash
+npm run test:install   # once: downloads Chromium for Playwright
+npm test               # unit tests (PGlite) + API and browser tests (Playwright)
+```
+
+The suite runs against an isolated offline server with outbound network blocked. It covers:
+- Google OAuth: PKCE, signed state, account reuse and deletion
+- Body-language maths
+- Scenario validation
+- The planner's analysis
+- ElevenLabs voice fallback
+- Whisper routing
+- Postgres stats
+- The MCP protocol
+- A full browser journey: template → custom practice → camera coach (simulated vision model) → report → plan → drill
+
+CI runs the suite on every push and pull request.
+
+## Roadmap
+
+- [ ] Real-time voice conversation mode for the practice partner (interruptions and follow-ups)
+- [ ] Team workspaces for coaches, placement cells and accelerators
+- [ ] Shareable report links
+- [ ] Localised interface (not just practice language)
+- [ ] Installable PWA with offline caching, then mobile app wrappers
+
+Have an idea? [Open a feature request](https://github.com/tausifaman222/clarity-ai_airtribe_hackathon/issues/new?template=feature_request.yml).
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md). Good first issues are labelled [`good first issue`](https://github.com/tausifaman222/clarity-ai_airtribe_hackathon/labels/good%20first%20issue).
+
+## Credits and license
+
+Built at the **Airtribe AI Builders Day** hackathon by **Ashish & Tausif**, with ❤️.
+
+Thanks to the open-source projects that make this possible: [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Whisper](https://github.com/openai/whisper), [gpt-oss](https://github.com/openai/gpt-oss), [Express](https://expressjs.com), [node-postgres](https://node-postgres.com), [PGlite](https://pglite.dev) and [Playwright](https://playwright.dev).
+
+Released under the [MIT License](LICENSE).
