@@ -37,7 +37,7 @@
     "test:install": "playwright install chromium"
   },
   "dependencies": {
-    "express": "^4.22.3",
+    "express": "^5.3.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {
