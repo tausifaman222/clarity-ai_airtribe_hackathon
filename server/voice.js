@@ -66,8 +66,10 @@ export async function voiceStatus(fetchImpl) {
   let result;
   try { await synthesize("Hi.", "meera", fetchImpl); result = { provider: "elevenlabs", ok: true }; }
   catch (e) {
-    const reason = e.status === 401 ? "ElevenLabs rejected the API key (wrong key, or the free tier was blocked for this account)."
-      : e.status === 402 || /quota|credits|limit/i.test(e.detail || "") ? "ElevenLabs credits are used up."
+    const d = e.detail || "";
+    const reason = e.status === 402 || /quota|credits/i.test(d) ? "ElevenLabs credits are used up."
+      : /unusual_activity|free tier/i.test(d) ? "ElevenLabs blocked the free tier for this account."
+      : e.status === 401 ? "ElevenLabs rejected the API key."
       : `ElevenLabs error: ${e.message.slice(0, 160)}`;
     result = { provider: "elevenlabs", ok: false, error: reason, fallback: "browser" };
   }
