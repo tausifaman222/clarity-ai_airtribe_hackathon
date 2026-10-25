@@ -1,30 +1,50 @@
 # One-click deploy on Render (render.com): New → Blueprint → pick this repo.
+# Creates the web app and a Postgres database, wires DATABASE_URL, and applies db/schema.sql on every deploy.
+# Starter web (~$7/mo, no cold starts) + basic-256mb Postgres (~$6/mo). For a zero-cost trial, change both plans to
+# "free" and delete preDeployCommand (run `npm run db:migrate` from the Render Shell instead).
 services:
   - type: web
     name: clarity-ai
     runtime: node
-    plan: free
+    plan: starter
+    region: singapore
     buildCommand: npm ci --omit=dev
+    preDeployCommand: npm run db:migrate
     startCommand: node server.js
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: "20"
       - key: SESSION_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clarity-db
+          property: connectionString
       - key: LLM_PROVIDER
-        value: openai
-      - key: LLM_BASE_URL
-        value: https://api.groq.com/openai/v1
-      - key: LLM_MODEL
-        value: openai/gpt-oss-120b
+        value: groq
       - key: LLM_API_KEY
         sync: false
-      - key: DATABASE_URL
-        sync: false
       - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: FALLBACK_LLM_API_KEY
+        sync: false
+      - key: FALLBACK_LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: FALLBACK_LLM_MODEL
+        value: gemini-2.5-flash
+      - key: PUBLIC_URL
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+
+databases:
+  - name: clarity-db
+    plan: basic-256mb
+    region: singapore
+    databaseName: clarity
+    user: clarity
+    postgresMajorVersion: "16"

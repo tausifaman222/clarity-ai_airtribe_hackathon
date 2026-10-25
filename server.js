@@ -3,7 +3,7 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { aiStatus, callLLMJson } from "./llm.js";
+import { aiStatus, callLLMJson, llmHealth } from "./llm.js";
 import { STAGES, stageById, checklistText, FILLERS, HEDGES, countPhrases, sum, wordCount, DEMO_PITCH } from "./public/rubrics.js";
 import { offlineCoach, offlineVerdict, offlineJudge } from "./offline.js";
 import { registerCommunity, saveVerifiedAttempt, database, userIdOf } from "./server/community.js";
@@ -239,13 +239,13 @@ const track = (type, sid) => stats.track(type, sid);
 app.post("/api/event", (req, res) => { track(str(req.body?.type, 30), str(req.body?.sid, 40)); res.json({ ok: true }); });
 app.get("/api/stats", async (req, res) => res.set("Cache-Control", "no-store").json(await stats.summary()));
 
-// Health. ?deep=1 also proves the voice provider works by synthesising one word (cached).
+// Health. ?deep=1 also proves the AI and voice providers work with one tiny real call each (cached).
 app.get("/api/health", async (req, res) => {
   const a = aiStatus();
-  const body = { ok: true, ai: a.ready, mode: a.ready ? "ai" : "offline", model: a.ready ? a.model : null, problem: a.problem,
+  const body = { ok: true, ai: a.ready, mode: a.ready ? "ai" : "offline", model: a.ready ? a.model : null, fallback: a.fallback, problem: a.problem,
     tts: elevenKey() ? "elevenlabs" : "browser", stt: sttConfig().ready ? "whisper" : "browser", evaluator: a.ready,
     google: googleConfigured() && !!database, accounts: !!database && (process.env.SESSION_SECRET || "").length >= 32 };
-  if (req.query.deep === "1") body.voice = await voiceStatus();
+  if (req.query.deep === "1") [body.llm, body.voice] = await Promise.all([a.ready ? llmHealth() : null, voiceStatus()]);
   res.set("Cache-Control", "no-store").json(body);
 });
 

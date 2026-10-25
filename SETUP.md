@@ -64,7 +64,7 @@ FALLBACK_LLM_MODEL=gemini-2.5-flash
 
 ### C. Render, Railway, Fly or any Docker host
 
-- **Render:** choose **New → Blueprint**, pick the repo, and fill in the keys it asks for (`render.yaml` is included). Add a Render Postgres database and paste its URL into `DATABASE_URL`.
+- **Render:** choose **New → Blueprint**, pick the repo, and fill in the keys it asks for. `render.yaml` creates the web app **and** a Postgres database, connects them, generates `SESSION_SECRET`, and creates the tables on every deploy, so you don't need to run the migration yourself. It uses the Starter web plan and the basic-256mb database (about $13/month together, no cold starts); see the comment at the top of the file for a free-tier version.
 - **Anything with Docker:** run `docker build -t clarity-ai . && docker run -p 5000:5000 --env-file .env clarity-ai`.
 
 Then run `npm run db:migrate` once against your database.
@@ -76,10 +76,13 @@ Then run `npm run db:migrate` once against your database.
 Open `https://YOUR-APP/api/health?deep=1`. You want to see:
 
 ```json
-{ "ai": true, "stt": "whisper", "accounts": true, "voice": { "provider": "elevenlabs", "ok": true } }
+{ "ai": true, "stt": "whisper", "accounts": true,
+  "llm": { "ok": true, "main": { "model": "openai/gpt-oss-120b", "ok": true } },
+  "voice": { "provider": "elevenlabs", "ok": true } }
 ```
 
-- `"ai": false`: the AI key or provider is wrong. The app still works in offline mode.
+- `"ai": false`: no AI key is set. The app still works in offline mode.
+- `llm.main.ok: false`: a real test call failed; `error` says why (key rejected, rate limited, model not found). If `llm.fallback.ok` is true, users are served by the backup.
 - `"accounts": false`: either `DATABASE_URL` is missing or `SESSION_SECRET` is shorter than 32 characters.
 - `voice.ok: false`: the `error` field says why (wrong key, or no credits). Users hear the browser voice instead.
 
