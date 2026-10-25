@@ -1,11 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getAuth } from "@clerk/express";
-import pg from "pg";
+import { database } from "./db.js";
 
-export const database = process.env.DATABASE_URL
-  ? new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000, max: 5 }) : null;
-
-export const userIdOf = req => req.localUserId || (req.auth ? getAuth(req).userId : null);
+export { database };
+export const userIdOf = req => req.localUserId || null;
 const stages = new Set(["idea", "preseed", "seed", "seriesa"]);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -29,7 +26,7 @@ export async function saveVerifiedAttempt(db, userId, report, stage, inputMode) 
 export function registerCommunity(app, { db = database, identity = userIdOf } = {}) {
   const protectedRoute = (req, res, next) => {
     req.communityUserId = identity(req);
-    if (!req.communityUserId) return res.status(401).json({ error: "Sign in with Google to manage your scores." });
+    if (!req.communityUserId) return res.status(401).json({ error: "Sign in to manage your scores." });
     if (!db) return res.status(503).json({ error: "Score storage is unavailable. Please try again later." });
     next();
   };
@@ -75,6 +72,14 @@ export function registerCommunity(app, { db = database, identity = userIdOf } = 
       FROM clarity_attempts WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20`, [req.communityUserId]);
     res.set("Cache-Control", "no-store").json({ attempts: result.rows });
   }));
+  // One saved report, so signed-in founders can reopen past feedback on any device.
+  app.get("/api/me/attempts/:id", protectedRoute, run(async (req, res) => {
+    if (!uuid.test(req.params.id)) return res.status(404).json({ error: "Report not found." });
+    const result = await db.query("SELECT id,stage,input_mode,score,published,created_at,report FROM clarity_attempts WHERE id=$1 AND user_id=$2",
+      [req.params.id, req.communityUserId]);
+    if (!result.rows.length) return res.status(404).json({ error: "Report not found." });
+    res.set("Cache-Control", "no-store").json({ attempt: result.rows[0] });
+  }));
   app.post("/api/leaderboard/publish", protectedRoute, sameOrigin, run(async (req, res) => {
     const { attemptId } = req.body || {};
     const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim() : "";
@@ -82,7 +87,7 @@ export function registerCommunity(app, { db = database, identity = userIdOf } = 
       return res.status(400).json({ error: "Choose a score and a public name of 2–40 characters. Don't use an email address." });
     }
     const result = await db.query(`UPDATE clarity_attempts SET published=TRUE,display_name=$1
-      WHERE id=$2 AND user_id=$3 RETURNING id,stage,input_mode,score`, [displayName, attemptId, req.communityUserId]);
+      WHERE id=$2 AND user_id=$3 AND stage <> 'custom' RETURNING id,stage,input_mode,score`, [displayName, attemptId, req.communityUserId]);
     if (!result.rows.length) return res.status(404).json({ error: "That verified score wasn't found in your account." });
     res.json({ published: true, attempt: result.rows[0] });
   }));

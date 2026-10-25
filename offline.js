@@ -29,6 +29,19 @@ const isHindi = (t) => (String(t).match(/[ऀ-ॿ]/g) || []).length > String(t).
 const sentences = (t) => String(t).split(/(?<=[.!?।])\s+/).map(s => s.trim()).filter(s => s.split(/\s+/).length >= 4);
 const hit = (id, t) => (KW[id] ? KW[id].test(t) : false);
 
+// Custom scenarios (job interview, negotiation, ...) bring their own keywords; titles are the fallback.
+export function registerKeywords(items) {
+  for (const it of items || []) {
+    if (KW[it.id] && !it.kw) continue;
+    const words = String(it.title || "").toLowerCase().split(/[^a-z\u0900-\u097f]+/).filter(w => w.length > 3);
+    const src = it.kw || words.join("|");
+    try { if (src) KW[it.id] = new RegExp(src, "i"); } catch {}
+    ASK_CUSTOM[it.id] = { en: `Now tell me about ${it.title.toLowerCase()}. ${it.good}`, hi: `Ab ${it.title.toLowerCase()} ke baare mein batao. ${it.good}` };
+  }
+}
+const ASK_CUSTOM = {};
+const askFor = (lang, id) => ASK_CUSTOM[id]?.[lang] || ASK[lang][id] || ASK.en[id] || "Tell me more about this point.";
+
 const ASK = {
   en: {
     problem: "What exactly is the problem, and who loses what today? Give me one real example.",
@@ -86,11 +99,11 @@ export function offlineCoach(stage, history, userText, prevCovered) {
   if (hi) {
     reply = fresh.length ? `Badhiya, ${fresh.map(i => i.title.toLowerCase()).join(" aur ")} clear aaya. ` : "Theek hai, aage badhte hain. ";
     if (hedges >= 2) reply += "Thoda confidence se bolo, 'shayad' kam karo. ";
-    reply += next ? ASK.hi[next.id] : "Saare points cover ho gaye. Ab investor verdict lo, ya Showtime try karo.";
+    reply += next ? askFor("hi", next.id) : "Saare points cover ho gaye. Ab interview try karo.";
   } else {
     reply = fresh.length ? `Nice, your ${fresh.map(i => i.title.toLowerCase()).join(" and ")} came through. ` : "Okay, keep going. ";
     if (hedges >= 2) reply += "Separate what you've observed from what you're still testing. ";
-    reply += next ? ASK.en[next.id] : "You've covered the essentials. Ask for the investor verdict, or try Showtime.";
+    reply += next ? askFor("en", next.id) : "You've covered the essentials. Try the full interview when you're ready.";
   }
   return { reply, covered, nextFocus: next?.id || null };
 }
@@ -107,7 +120,7 @@ export function offlineVerdict(stage, history) {
       : (verdict === "ready" ? "This is clear enough to pitch. Take it to Showtime." : "There's something here, but key pieces are still missing."),
     clear: cov.slice(0, 3).map(i => `${i.title}: mentioned`),
     missing: miss.slice(0, 3).map(i => `${i.title}${i.must ? " ★" : ""}: ${i.good}`),
-    fixFirst: (mustMiss[0] || miss[0]) ? ASK[hi ? "hi" : "en"][(mustMiss[0] || miss[0]).id] : "Rehearse it once end to end in Showtime.",
+    fixFirst: (mustMiss[0] || miss[0]) ? askFor(hi ? "hi" : "en", (mustMiss[0] || miss[0]).id) : "Rehearse it once end to end in Showtime.",
   };
 }
 
@@ -141,7 +154,7 @@ export function offlineJudge(stage, transcript, metrics) {
     strengths: withNum.slice(0, 3).map(q => ({ title: "Specific number", quote: q, why: "Numbers make claims credible." })),
     fixes: [...weak.slice(0, 2).map(q => ({ title: "Cut the hedging and fillers", youSaid: q, try: "[Say the same point without the filler words, as a fact]", why: "Hedges lower conviction." })),
       ...missingItems.slice(0, 3).map(i => ({ title: `Add: ${i.title}`, youSaid: "Not mentioned", try: `[${i.good}]`, why: i.must ? "This is a must-have at this stage." : "Strengthens the pitch." }))].slice(0, 3),
-    toughestQuestion: { question: missingItems[0] ? ASK.en[missingItems[0].id] : "What's the biggest risk in this plan?", howToAnswer: "Answer with one number and one example." },
+    toughestQuestion: { question: missingItems[0] ? askFor("en", missingItems[0].id) : "What's the biggest risk in this plan?", howToAnswer: "Answer with one number and one example." },
     rewrite: stage.items.map(i => { const c = checklist.find(x => x.id === i.id); return c.status !== "missing" ? c.evidence : `[${i.title}]`; }).join(" "),
   };
 }

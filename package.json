@@ -1,34 +1,47 @@
 {
-  "name": "sayso",
-  "version": "1.0.0",
-  "description": "Sayso: AI communication simulator. Say it so it lands.",
+  "name": "clarity-ai",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Clarity AI: practise speaking confidently. Voice, video and AI feedback on what you say, not your grammar.",
+  "license": "MIT",
+  "author": "Ashish & Tausif",
+  "homepage": "https://clarityai.geekypmtausif.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tausifaman222/clarity-ai_airtribe_hackathon.git"
+  },
+  "keywords": [
+    "ai",
+    "speaking",
+    "interview",
+    "pitch",
+    "coaching",
+    "multi-agent",
+    "mcp",
+    "whisper",
+    "mediapipe"
+  ],
   "type": "module",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node scripts/build-auth.js && node server.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "db:migrate": "node scripts/migrate.js",
     "test": "node --test tests/*.test.js && playwright test",
-    "test:community": "node --test tests/community.test.js",
+    "test:unit": "node --test tests/*.test.js",
     "test:api": "playwright test --project=api",
     "test:browser": "playwright test --project=chromium",
     "test:install": "playwright install chromium"
   },
-  "engines": {
-    "node": ">=18"
-  },
   "dependencies": {
-    "@clerk/express": "^2.1.83",
-    "@clerk/react": "^6.18.1",
-    "@clerk/shared": "^4.41.1",
-    "@clerk/themes": "^2.4.57",
-    "@electric-sql/pglite": "^0.5.11",
-    "@playwright/test": "^1.64.1",
-    "cors": "^2.8.6",
-    "esbuild": "^0.28.2",
     "express": "^4.22.3",
-    "http-proxy-middleware": "^3.0.7",
-    "pg": "^8.23.1",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "wouter": "^3.13.0"
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@playwright/test": "1.63.0"
   }
 }

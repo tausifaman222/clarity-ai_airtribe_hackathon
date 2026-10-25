@@ -21,8 +21,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "api", testMatch: "api.spec.js" },
-    { name: "chromium", testMatch: "browser.spec.js", use: { browserName: "chromium", launchOptions: { executablePath } } },
+    { name: "api", testMatch: /api.*\.spec\.js/ },
+    { name: "chromium", testMatch: /browser.*\.spec\.js/, use: { browserName: "chromium", launchOptions: { executablePath } } },
   ],
   webServer: {
     command: "node tests/support/offline-server.js",

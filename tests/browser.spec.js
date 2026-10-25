@@ -103,14 +103,14 @@ test("mobile setup keeps language and stage, supports keyboard choices, and open
   await page.getByRole("button", { name: "Start my warm-up" }).click();
   await expect(page).toHaveURL(/#\/coach$/);
   await expect(page.getByRole("button", { name: /Continue to interview/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "हिंदी (hi-IN)", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("combobox", { name: "Practice language" })).toHaveValue("hi-IN");
   await expect(page.getByRole("textbox", { name: "Type instead" })).toBeVisible();
 });
 
 test("legacy stage and mode links open the unified interview flow without separate mode choices", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".cr-future")).toContainText("not available yet");
-  await expect(page.locator(".cr-future button, .cr-future a")).toHaveCount(0);
+  await expect(page.locator(".cr-future")).toHaveCount(0);
+  await expect(page.locator(".cr-template")).toHaveCount(9);
   await page.goto("/#/stage");
   await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
   await page.locator('[data-stage="seriesa"]').click();
@@ -229,18 +229,16 @@ test("Showtime countdown appears only at 45 seconds left and submits at five min
 
 test("username sign-in screens explain the account model and keep guest practice available", async ({ page }) => {
   await page.goto("/");
+  // This regression server has no database, so the header hides sign-in buttons instead of offering a dead end.
   const homeAccounts = page.locator(".cr-product-nav [data-auth-controls]");
-  await expect(homeAccounts.getByRole("link", { name: "Sign in" })).toBeVisible();
-  await expect(homeAccounts.getByRole("link", { name: "Create account" })).toBeVisible();
-  await page.goto("/#/stage");
-  const appAccounts = page.locator(".topbar [data-auth-controls]");
-  await expect(appAccounts.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(homeAccounts.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+  await expect(homeAccounts.getByRole("link", { name: "Continue with Google" })).toHaveCount(0);
 
   await page.goto("/sign-up");
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
   await expect(page.getByLabel("Username")).toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("minlength", "12");
-  await expect(page.getByText("Google sign-in · Coming soon")).toBeVisible();
+  await expect(page.getByText("Google sign-in · Coming soon")).toHaveCount(0);
   await expect(page.getByText(/Password recovery isn't available yet/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Keep practising as a guest." })).toBeVisible();
   await page.getByRole("link", { name: /Sign in/ }).last().click();

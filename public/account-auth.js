@@ -27,15 +27,31 @@ app.innerHTML = `<div class="auth-page">
       <button class="btn primary lg" type="submit">${isRegistering ? "Create account" : "Sign in"}</button>
     </form>
     <p class="small muted account-safety">We never store your password in readable form. <b>Password recovery isn't available yet</b>—without a recovery email, a lost password means you can't get back into that account.</p>
-    <span class="google-coming-soon auth-google" aria-label="Google sign-in coming soon">Google sign-in · Coming soon</span>
+    <div id="googleBox"></div>
     <p class="account-switch">${isRegistering
       ? 'Already have an account? <a class="linkbtn" href="/sign-in">Sign in</a>'
       : 'New here? <a class="linkbtn" href="/sign-up">Create an account</a>'}</p>
+    <p class="small muted account-safety">By continuing you agree to our <a class="linkbtn" href="/terms">Terms</a> and <a class="linkbtn" href="/privacy">Privacy policy</a>.</p>
     <p class="small muted account-safety">Want to explore first? <a class="linkbtn" href="/">Keep practising as a guest.</a> Guest reports aren't saved to your account.</p>
   </section>
 </div>`;
 
+const ERRORS = {
+  google_unavailable: "Google sign-in isn't set up on this server yet. Use a username and password instead.",
+  google_cancelled: "Google sign-in was cancelled.",
+  google_expired: "That sign-in link expired. Please try again.",
+  google_unverified: "Your Google email address isn't verified.",
+  google_failed: "Google sign-in didn't work. Please try again.",
+};
 const form = app.querySelector("#accountForm");
+fetch("/api/health", { cache: "no-store" }).then(r => r.json()).then(h => {
+  if (!h.google) return;
+  app.querySelector("#googleBox").innerHTML = `<a class="btn lg google-btn" href="/auth/google">
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6.1C12.3 13.6 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.2 5.6c4.2-3.9 7.1-9.6 7.1-17.1z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.2-5.6c-2 1.4-4.6 2.2-8.7 2.2-6.4 0-11.7-4.1-13.6-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>
+    Continue with Google</a><p class="auth-or"><span>or use a username</span></p>`;
+}).catch(() => {});
+const err = new URLSearchParams(location.search).get("error");
+if (err && ERRORS[err]) setTimeout(() => { app.querySelector("#accountFeedback").textContent = ERRORS[err]; }, 0);
 const feedback = app.querySelector("#accountFeedback");
 form.elements.username.focus({ preventScroll: true });
 

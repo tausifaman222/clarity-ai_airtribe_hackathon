@@ -45,7 +45,7 @@ test("salted username accounts securely own scores and can sign in and out", asy
     assert.equal((await register("attacker01", "long-password-one", "long-password-one", "https://attacker.example")).status, 403, "browser account changes require same-origin requests");
     const created = await register("Founder_01", "long-password-one");
     assert.equal(created.status, 201);
-    assert.deepEqual(created.body, { user: { username: "founder_01" } });
+    assert.deepEqual(created.body, { user: { username: "founder_01", displayName: null, avatarUrl: null, google: false } });
 
     const cookie = created.headers.get("set-cookie").split(";")[0];
     assert.match(created.headers.get("set-cookie"), /HttpOnly/i);
@@ -56,7 +56,7 @@ test("salted username accounts securely own scores and can sign in and out", asy
     assert.match(stored.password_hash, /^scrypt\$/);
     assert.ok(!stored.password_hash.includes("long-password-one"), "password is never stored in readable form");
     const identity = await request("/api/auth/me", { cookie });
-    assert.deepEqual(identity.body, { user: { username: "founder_01" } });
+    assert.deepEqual(identity.body, { user: { username: "founder_01", displayName: null, avatarUrl: null, google: false } });
     const [storedToken] = (await db.query("SELECT session_hash,expires_at FROM clarity_auth_sessions")).rows;
     assert.equal(storedToken.session_hash.length, 64);
     assert.notEqual(storedToken.session_hash, cookie.slice("clarity_session=".length), "the database stores a hash—not the session cookie");
