@@ -159,7 +159,7 @@ Open `http://localhost:5000/api/health?deep=1` to check that every integration i
 | **Replit** | Import from GitHub; `.replit` is included |
 | **Docker** (Railway, Fly.io, Cloud Run, a VPS) | `docker build -t clarity-ai . && docker run -p 5000:5000 --env-file .env clarity-ai` |
 
-[SETUP.md](SETUP.md) walks through each host, Google sign-in, ElevenLabs and pointing your own subdomain (for example on Hostinger).
+Or run `npm run setup` on your computer: it tests every key with a real call, uploads them to Vercel, creates the tables and deploys. [SETUP.md](SETUP.md) walks through each host, Google sign-in, ElevenLabs and pointing your own subdomain (for example on Hostinger).
 
 ## Configuration
 

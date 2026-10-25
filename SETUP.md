@@ -13,6 +13,29 @@ You need a **GitHub repo** with this code. Everything else has a free tier.
 
 ---
 
+## Fastest: the setup wizard (Vercel)
+
+On your computer, with [Node.js 20+](https://nodejs.org) installed:
+
+```bash
+git clone https://github.com/tausifaman222/clarity-ai_airtribe_hackathon.git
+cd clarity-ai_airtribe_hackathon
+npm install
+npm run setup
+```
+
+The wizard:
+1. Asks for your Groq, ElevenLabs and Gemini keys (typing is hidden).
+2. **Tests each key with a tiny real call** and tells you exactly what's wrong: key rejected, out of credits, rate limited, or model not available.
+3. Saves them to `.env`, which is git-ignored and never committed, and generates `SESSION_SECRET` for you.
+4. Optionally links your Vercel project, uploads the keys, creates the database tables, deploys, and checks the live app.
+
+Your keys only go to your own computer, your Vercel project and the providers themselves. To use Replit or Render instead, answer "n" at the Vercel step and copy the values from `.env` into that host's Secrets page.
+
+If you'd rather click through the dashboards, follow the manual steps below.
+
+---
+
 ## 1. Get your keys (5 min)
 
 | What | Where | Env var |
