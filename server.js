@@ -394,7 +394,7 @@ async function withEvaluation(stage, report, evalRun) {
 }
 
 app.use("/api", (req, res) => fail(res, 404, "Not found"));
-app.get("*", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/{*splat}", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 export default app;
 
