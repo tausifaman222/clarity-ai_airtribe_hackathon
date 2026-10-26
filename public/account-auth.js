@@ -7,7 +7,7 @@ const esc = value => String(value).replace(/[&<>"']/g, char =>
 app.innerHTML = `<div class="auth-page">
   <a href="/" class="auth-back">← Back to Clarity AI</a>
   <section class="auth-card" aria-labelledby="accountTitle">
-    <img src="/logo.svg" alt="Clarity AI" width="136">
+    <img src="/logo.svg" alt="Clarity AI: Speak confidently. Be understood." width="240" height="48">
     <p class="auth-kicker">${isRegistering ? "YOUR PRIVATE PRACTICE SPACE" : "WELCOME BACK"}</p>
     <h1 id="accountTitle">${isRegistering ? "Create your account" : "Sign in to your account"}</h1>
     <p class="muted">${isRegistering

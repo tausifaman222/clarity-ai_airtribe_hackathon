@@ -1,1 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="210" height="40" viewBox="0 0 210 40" fill="none"><rect width="40" height="40" rx="12" fill="#17645a"/><path d="M8 17v6m5-11v16m5-22v28m5-18v9m5-15v19m5-12v6" stroke="#fffdf7" stroke-width="2" stroke-linecap="round"/><text x="52" y="28" fill="#173e3b" font-family="Arial,sans-serif" font-size="26" font-weight="700">Clarity AI</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="84" viewBox="0 0 420 84" fill="none" role="img" aria-label="Clarity AI: Speak confidently. Be understood.">
+  <svg x="0" y="0" width="84" height="84" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ca-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0C4C44"/><stop offset="1" stop-color="#1A7F70"/></linearGradient>
+    <linearGradient id="ca-wave" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFB08A"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#ca-bg)"/>
+  <circle cx="138" cy="210" r="46" fill="#FFFFFF"/>
+  <path d="M66 372 a72 72 0 0 1 144 0 v14 H66z" fill="#FFFFFF"/>
+  <rect x="330" y="166" width="104" height="92" rx="34" fill="#FF8A5B"/>
+  <circle cx="362" cy="210" r="10" fill="#0C4C44"/><circle cx="402" cy="210" r="10" fill="#0C4C44"/>
+  <path d="M302 372 a80 72 0 0 1 160 0 v14 H302z" fill="#FF8A5B"/>
+  <path d="M382 104 l8 22 22 8 -22 8 -8 22 -8 -22 -22 -8 22 -8z" fill="#FFD3BE"/>
+  <g fill="url(#ca-wave)">
+    <rect x="206" y="232" width="14" height="28" rx="7"/>
+    <rect x="230" y="216" width="14" height="60" rx="7"/>
+    <rect x="254" y="198" width="14" height="96" rx="7"/>
+    <rect x="278" y="214" width="14" height="64" rx="7"/>
+    <rect x="302" y="230" width="14" height="32" rx="7"/>
+  </g>
+  </svg>
+  <text x="100" y="44" fill="#173E3B" font-family="'DM Sans',Inter,Arial,Helvetica,sans-serif" font-size="36" font-weight="800" letter-spacing="-.5">Clarity <tspan fill="#17645A">AI</tspan></text>
+  <text x="101" y="70" fill="#4F6965" font-family="'DM Sans',Inter,Arial,Helvetica,sans-serif" font-size="16.5" font-weight="500">Speak confidently. <tspan fill="#E8703F" font-weight="700">Be understood.</tspan></text>
+</svg>

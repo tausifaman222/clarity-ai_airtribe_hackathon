@@ -14,7 +14,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
       <div class="cr-shell">
         <header class="cr-header">
           <a class="cr-brand" href="#/" aria-label="Clarity AI home">
-            <span class="cr-mark" aria-hidden="true">${icon("audioLines", 20)}</span>
+            <img class="cr-mark-img" src="/logo-mark.svg" alt="" width="36" height="36">
             <span>Clarity AI</span>
           </a>
           <div class="cr-header-note">${icon("messageCircle", 17)}<span>A little practice. A lot more you.</span></div>
@@ -98,7 +98,7 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
           </div>
         </section>
         <footer class="cr-footer">
-          <span class="cr-footer-brand">${icon("audioLines", 15)} Clarity AI</span>
+          <span class="cr-footer-brand"><img src="/logo-mark.svg" alt="" width="18" height="18" style="vertical-align:-4px;border-radius:5px"> Clarity AI · Speak confidently. Be understood.</span>
           <span class="cr-footer-principle"><strong>Your ideas first.</strong> Practise in 16 languages, including English, हिंदी and Hinglish.</span>
           <span class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by <a href="https://www.linkedin.com/in/ashishkumar620" target="_blank" rel="noopener">Ashish Kumar</a> &amp; <a href="https://www.linkedin.com/in/tausif222" target="_blank" rel="noopener">Tausif</a></span>
           <span class="cr-footer-links"><a href="/contact">💬 Contact us on WhatsApp</a> · <a href="#/progress">Progress</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>

@@ -219,3 +219,7 @@
 @media (prefers-reduced-motion: reduce) {
   .clarity-refresh *, .clarity-refresh *::before, .clarity-refresh *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* New brand mark (you + AI partner) */
+.cr-mark-img { display: block; width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 6px 16px -8px rgba(12, 76, 68, .55); }
+@media (max-width: 560px) { .cr-mark-img { width: 32px; height: 32px; } }
