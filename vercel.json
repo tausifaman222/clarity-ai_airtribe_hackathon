@@ -11,8 +11,8 @@
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/auth/:path*", "destination": "/api/index" },
     { "source": "/mcp", "destination": "/api/index" },
-    { "source": "/sign-in", "destination": "/auth.html" },
-    { "source": "/sign-up", "destination": "/auth.html" }
+    { "source": "/sign-in", "destination": "/api/index" },
+    { "source": "/sign-up", "destination": "/api/index" }
   ],
   "headers": [
     { "source": "/(.*)", "headers": [
