@@ -17,7 +17,7 @@ Feedback on *what you say and how you say it*, never your grammar or accent.
 
 [**Live demo**](https://clarityai.geekypmtausif.com) · [**Setup in 10 minutes**](SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Launch kit](docs/LAUNCH.md)
 
-<sub>Built at the <b>Airtribe AI Builders Day</b> hackathon · Made with ❤️ by Ashish &amp; Tausif</sub>
+<sub>Built at the <b>Airtribe AI Builders Day</b> hackathon · Made with ❤️ by <a href="https://www.linkedin.com/in/ashishkumar620">Ashish Kumar</a> &amp; <a href="https://www.linkedin.com/in/tausif222">Tausif</a></sub>
 
 <img src="docs/screenshots/01-home.png" alt="Clarity AI home page" width="900">
 
@@ -275,7 +275,9 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and ou
 
 ## Credits and license
 
-Built at the **Airtribe AI Builders Day** hackathon by **Ashish & Tausif**, with ❤️.
+Built at the **Airtribe AI Builders Day** hackathon by **[Ashish Kumar](https://www.linkedin.com/in/ashishkumar620)** & **[Tausif](https://www.linkedin.com/in/tausif222)**, with ❤️.
+
+Questions, feedback or partnerships: [WhatsApp Tausif](https://wa.me/919609378839?text=Hi%20Tausif%2C%20I%20found%20Clarity%20AI) · [LinkedIn: Ashish](https://www.linkedin.com/in/ashishkumar620) · [LinkedIn: Tausif](https://www.linkedin.com/in/tausif222)
 
 Thanks to the open-source projects that make this possible: [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Whisper](https://github.com/openai/whisper), [gpt-oss](https://github.com/openai/gpt-oss), [Express](https://expressjs.com), [node-postgres](https://node-postgres.com), [PGlite](https://pglite.dev) and [Playwright](https://playwright.dev).
 
