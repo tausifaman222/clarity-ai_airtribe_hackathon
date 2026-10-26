@@ -11,7 +11,7 @@ const env = (k) => (process.env[k] || "").trim();
 // One-word presets for open-model and free-tier providers.
 const PRESETS = {
   groq: { baseUrl: "https://api.groq.com/openai/v1", model: "openai/gpt-oss-120b", keyEnv: "GROQ_API_KEY" },
-  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash", keyEnv: "GEMINI_API_KEY" },
+  gemini: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-flash-latest", keyEnv: "GEMINI_API_KEY" },
   openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "", keyEnv: "OPENROUTER_API_KEY" },
 };
 function config() {
@@ -34,7 +34,7 @@ function config() {
 
 function fallbackConfig() {
   const key = env("FALLBACK_LLM_API_KEY");
-  const baseUrl = (env("FALLBACK_LLM_BASE_URL") || (key.startsWith("AIza") ? PRESETS.gemini.baseUrl : "")).replace(/\/+$/, "");
+  const baseUrl = (env("FALLBACK_LLM_BASE_URL") || (/^(AIza|AQ\.)/.test(key) ? PRESETS.gemini.baseUrl : "")).replace(/\/+$/, "");
   const model = env("FALLBACK_LLM_MODEL") || (baseUrl === PRESETS.gemini.baseUrl ? PRESETS.gemini.model : "");
   return key && baseUrl && model ? { key, provider: "openai", baseUrl, model } : null;
 }
@@ -79,12 +79,14 @@ async function callProvider(c, system, user, maxTokens, timeoutMs) {
   const host = new URL(c.baseUrl).hostname;
   const groqReasoning = host === "api.groq.com" && c.model.startsWith("openai/gpt-oss-");
   // OpenAI's newer models reject max_tokens; everyone else still expects it.
-  const budget = groqReasoning ? maxTokens + 4096 : maxTokens;
+  // Gemini Flash models also think before answering; give them room and keep thinking light.
+  const geminiThinking = host === "generativelanguage.googleapis.com";
+  const budget = groqReasoning ? maxTokens + 4096 : geminiThinking ? maxTokens + 2048 : maxTokens;
   const res = await fetch(`${c.baseUrl}/chat/completions`, {
     method: "POST", signal,
     headers: { Authorization: `Bearer ${c.key}`, "content-type": "application/json" },
     body: JSON.stringify({ model: c.model, ...(host === "api.openai.com" ? { max_completion_tokens: budget } : { max_tokens: budget }),
-      ...(groqReasoning ? { reasoning_effort: "low" } : {}),
+      ...(groqReasoning || geminiThinking ? { reasoning_effort: "low" } : {}),
       response_format: { type: "json_object" },
       messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
   });
@@ -117,7 +119,7 @@ export async function llmHealth() {
     if (!c) return null;
     const started = Date.now();
     try {
-      const out = parseJson(await callProvider(c, 'Reply with JSON only.', 'Return {"ok":true}', 50, 20000));
+      const out = parseJson(await callProvider(c, 'Reply with JSON only.', 'Return {"ok":true}', 200, 25000));
       return { model: c.model, ok: out.ok === true, ms: Date.now() - started };
     } catch (e) {
       const why = e.status === 401 || e.status === 403 ? "key rejected" : e.status === 429 ? "rate limited or out of quota" : e.status === 404 ? "model not found" : e.name === "TimeoutError" ? "timed out" : "error";

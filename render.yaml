@@ -33,7 +33,7 @@ services:
       - key: FALLBACK_LLM_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai
       - key: FALLBACK_LLM_MODEL
-        value: gemini-2.5-flash
+        value: gemini-flash-latest
       - key: PUBLIC_URL
         sync: false
       - key: GOOGLE_CLIENT_ID
