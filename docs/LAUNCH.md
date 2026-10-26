@@ -71,3 +71,10 @@ Record at 1270×760. Use real practice runs, not mockups.
 - **Which AI?** Open-weight gpt-oss-120b on Groq by default. It also works with Gemini, OpenRouter, Anthropic or any OpenAI-compatible model.
 - **Is it free?** Yes to try. Accounts save your history and progress.
 - **Can I self-host?** Yes. It runs on Vercel, Replit, Render or Docker; see SETUP.md.
+
+
+## Makers (for tagging and outreach)
+
+- Ashish Kumar: https://www.linkedin.com/in/ashishkumar620
+- Tausif: https://www.linkedin.com/in/tausif222
+- WhatsApp (Tausif): https://wa.me/919609378839

@@ -100,8 +100,8 @@ export function renderHome(root, { icon, stages, state, save, navigate, health, 
         <footer class="cr-footer">
           <span class="cr-footer-brand">${icon("audioLines", 15)} Clarity AI</span>
           <span class="cr-footer-principle"><strong>Your ideas first.</strong> Practise in 16 languages, including English, हिंदी and Hinglish.</span>
-          <span class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by Ashish &amp; Tausif</span>
-          <span class="cr-footer-links"><a href="#/progress">Progress</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+          <span class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by <a href="https://www.linkedin.com/in/ashishkumar620" target="_blank" rel="noopener">Ashish Kumar</a> &amp; <a href="https://www.linkedin.com/in/tausif222" target="_blank" rel="noopener">Tausif</a></span>
+          <span class="cr-footer-links"><a href="https://wa.me/919609378839?text=Hi%20Tausif%2C%20I%20found%20Clarity%20AI" target="_blank" rel="noopener">💬 WhatsApp Tausif</a> · <a href="#/progress">Progress</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
         </footer>
       </div>
     </div>`;
