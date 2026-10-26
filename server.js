@@ -19,6 +19,7 @@ import { normalizeScenario, SCENARIOS } from "./public/scenarios.js";
 import { trackFrom, ctxOf } from "./server/tracks.js";
 import { AGENT_TEAM, verifyQuotes } from "./server/agent-team.js";
 import { registerMcp } from "./server/mcp.js";
+import { registerContact, contactConfigured } from "./server/contact.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -244,7 +245,7 @@ app.get("/api/health", async (req, res) => {
   const a = aiStatus();
   const body = { ok: true, ai: a.ready, mode: a.ready ? "ai" : "offline", model: a.ready ? a.model : null, fallback: a.fallback, problem: a.problem,
     tts: elevenKey() ? "elevenlabs" : "browser", stt: sttConfig().ready ? "whisper" : "browser", evaluator: a.ready,
-    google: googleConfigured() && !!database, accounts: !!database && (process.env.SESSION_SECRET || "").length >= 32,
+    google: googleConfigured() && !!database, accounts: !!database && (process.env.SESSION_SECRET || "").length >= 32, contact: contactConfigured(),
     // Which commit is live (Vercel, Render, Railway and most hosts set one of these).
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || process.env.GIT_COMMIT || "").slice(0, 7) || null };
   if (req.query.deep === "1") [body.llm, body.voice] = await Promise.all([a.ready ? llmHealth() : null, voiceStatus()]);
@@ -252,6 +253,7 @@ app.get("/api/health", async (req, res) => {
 });
 
 registerVoice(app, { rateLimit, track });
+registerContact(app, { track });
 registerMcp(app, { routes: ROUTES });
 app.get("/api/agents", (req, res) => res.json({ orchestrator: "server.js coordinates the team per request", agents: AGENT_TEAM }));
 

@@ -77,4 +77,4 @@ Record at 1270×760. Use real practice runs, not mockups.
 
 - Ashish Kumar: https://www.linkedin.com/in/ashishkumar620
 - Tausif: https://www.linkedin.com/in/tausif222
-- WhatsApp (Tausif): https://wa.me/919609378839
+- Contact (WhatsApp, behind a human check): https://clarity-ai-airtribe-hackathon.vercel.app/contact
