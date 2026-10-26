@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/icon-512.png" width="88" alt="Clarity AI logo">
+<img src="public/logo.png" width="380" alt="Clarity AI: Speak confidently. Be understood.">
 
 # Clarity AI
 

@@ -17,7 +17,8 @@
   - Your AI rehearsal room for interviews, pitches and speeches
 - **Topics:** Artificial Intelligence, Productivity, Education, Career, Public Speaking
 - **Links:** your live URL (for example `https://clarityai.geekypmtausif.com`) and the GitHub repo
-- **Thumbnail:** `public/icon-512.png`
+- **Thumbnail:** `public/icon-512.png` (the mark: you rehearsing with an AI partner)
+- **Logo with name and tagline:** `public/logo.png` (horizontal), `public/logo-badge.png` (square, for posts and the gallery)
 - **Social image:** `public/og.png`
 
 ## Description (260 characters)
