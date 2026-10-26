@@ -21,6 +21,7 @@ import { trackFrom, ctxOf } from "./server/tracks.js";
 import { AGENT_TEAM, verifyQuotes } from "./server/agent-team.js";
 import { registerMcp } from "./server/mcp.js";
 import { registerContact, contactConfigured } from "./server/contact.js";
+import { registerOAuth, configuredProviders } from "./server/oauth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -34,6 +35,11 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "microphone=(self), camera=(self)");
+  // Nobody can load the app inside their own page (clickjacking), and browsers stick to HTTPS once they've seen it.
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  if ((req.get("x-forwarded-proto") || req.protocol) === "https") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
 // JSON for the API; /api/transcribe takes raw audio and parses its own body.
@@ -47,7 +53,7 @@ const schemaReady = database && process.env.AUTO_MIGRATE !== "0"
 app.use(async (req, res, next) => { if (database && /^\/(api|auth|sign-)/.test(req.path)) await schemaReady; next(); });
 
 const accountAuth = registerAccountAuth(app, { db: database });
-registerGoogleAuth(app, { db: database });
+registerOAuth(app, { db: database });
 app.use("/api", accountAuth.sessionMiddleware);
 app.get(["/sign-in", "/sign-up"], (req, res) => res.sendFile(path.join(__dirname, "public/auth.html")));
 registerCommunity(app);
@@ -253,7 +259,7 @@ app.get("/api/health", async (req, res) => {
   const a = aiStatus();
   const body = { ok: true, ai: a.ready, mode: a.ready ? "ai" : "offline", model: a.ready ? a.model : null, fallback: a.fallback, problem: a.problem,
     tts: elevenKey() ? "elevenlabs" : "browser", stt: sttConfig().ready ? "whisper" : "browser", evaluator: a.ready,
-    google: googleConfigured() && !!database, accounts: !!database && dbStatus === "ready" && (process.env.SESSION_SECRET || "").length >= 32, contact: contactConfigured(),
+    google: googleConfigured() && !!database, sso: database ? configuredProviders() : [], accounts: !!database && dbStatus === "ready" && (process.env.SESSION_SECRET || "").length >= 32, contact: contactConfigured(),
     // Which commit is live (Vercel, Render, Railway and most hosts set one of these).
     ...(database ? { database: dbStatus } : {}),
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || process.env.GIT_COMMIT || "").slice(0, 7) || null };

@@ -1311,7 +1311,7 @@ async function progressView(root) {
   if (!me) {
     const hist = S.history || [];
     box.innerHTML = `<section class="card"><h3>Keep your history across devices</h3><p class="muted" style="margin-top:6px">Sign in to save every AI-reviewed report, see your trend, and get a practice plan based on all your attempts.</p>
-      <div class="actions" style="justify-content:flex-start">${HEALTH_V.google ? `<a class="btn primary" href="/auth/google?return=/%23/progress">Continue with Google</a>` : ""}<a class="btn" href="/sign-in">Sign in</a><a class="btn" href="/sign-up">Create account</a></div></section>
+      <div class="actions" style="justify-content:flex-start">${(HEALTH_V.sso || []).map(p => `<a class="btn" href="/auth/${p}?return=/%23/progress">Continue with ${({ google: "Google", github: "GitHub", linkedin: "LinkedIn", microsoft: "Microsoft" })[p]}</a>`).join("")}<a class="btn" href="/sign-in">Sign in</a><a class="btn" href="/sign-up">Create account</a></div></section>
       ${hist.length ? `<section class="card" style="margin-top:16px"><h3>This session</h3>${spark(hist.map(h => h.overall).reverse())}<ul class="mlist">${hist.map(h => `<li>${esc(stageById(h.stage)?.name || h.stage)} · <b>${h.overall}</b> · ${new Date(h.at).toLocaleTimeString()}</li>`).join("")}</ul></section>` : ""}`;
     return;
   }
@@ -1325,7 +1325,7 @@ async function progressView(root) {
       <div class="card tile"><div class="k">Saved reports</div><div class="v">${attempts.length}</div></div>
       <div class="card tile"><div class="k">Best score</div><div class="v">${attempts.length ? best : "—"}</div></div>
       <div class="card tile"><div class="k">Latest</div><div class="v">${attempts[0]?.score ?? "—"}</div><div class="d">${attempts[0] ? new Date(attempts[0].created_at).toLocaleDateString() : ""}</div></div>
-      <div class="card tile"><div class="k">Signed in as</div><div class="v" style="font-size:18px">${esc(me.displayName || me.username)}</div><div class="d">${me.google ? "Google account" : "Username account"}</div></div>
+      <div class="card tile"><div class="k">Signed in as</div><div class="v" style="font-size:18px">${esc(me.displayName || me.username)}</div><div class="d">${me.provider ? `${({ google: "Google", github: "GitHub", linkedin: "LinkedIn", microsoft: "Microsoft" })[me.provider] || me.provider} account` : "Username account"}</div></div>
     </div>
     ${Object.entries(byStage).map(([st, list]) => `<section class="card sec" style="margin-top:16px"><div class="sec-title"><h3>${esc(stageById(st)?.name || st)}</h3><span class="spacer"></span>${spark(list.map(a => a.score).reverse())}</div>
       <table class="ct"><thead><tr><th>Date</th><th>Score</th><th>Input</th><th></th></tr></thead><tbody>

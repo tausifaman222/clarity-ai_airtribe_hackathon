@@ -111,23 +111,57 @@ Then try a template from the home page in Chrome with the camera coach on, and o
 
 ---
 
-## 4. Google sign-in (optional, 5 min)
+## 4. Sign-in with Google, GitHub, LinkedIn and Microsoft (optional, all free)
 
+Username and password sign-in works as soon as the database is connected. Each provider below adds a **Continue with …** button. Add any or all of them; none of them costs anything.
+
+Replace `YOUR-DOMAIN` with your live address, for example `clarity-ai-airtribe-hackathon.vercel.app`. Every provider needs the exact callback URL shown. Add one for each address you use (for example the `.vercel.app` one **and** your own subdomain).
+
+Then set `PUBLIC_URL=https://YOUR-DOMAIN` and redeploy. `/api/health` lists the providers that are switched on in `"sso"`.
+
+### Google
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a project.
 2. Open **APIs & Services → OAuth consent screen**:
    - choose **External**;
-   - fill in the app name, support email, and your domain;
+   - fill in the app name, support email and authorised domain;
    - set the privacy policy to `https://YOUR-DOMAIN/privacy` and terms to `https://YOUR-DOMAIN/terms`;
    - add the scopes `openid`, `email` and `profile`.
 3. Open **Credentials → Create credentials → OAuth client ID → Web application**:
-   - Authorized JavaScript origins: `https://YOUR-DOMAIN`
-   - Authorized redirect URIs: `https://YOUR-DOMAIN/auth/google/callback`
-   - Add a pair for each address you use, for example the `.vercel.app` or `.replit.app` address **and** your custom domain.
-4. Copy the client ID and secret into the env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-5. Set `PUBLIC_URL=https://YOUR-DOMAIN` so the redirect always uses your main domain. Then redeploy.
-6. On the consent screen, click **Publish app**, so that people outside your test-user list can sign in.
+   - origin: `https://YOUR-DOMAIN`
+   - redirect URI: `https://YOUR-DOMAIN/auth/google/callback`
+4. Copy the keys into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+5. Click **Publish app** on the consent screen, so everyone can sign in, not just your test users.
 
----
+### GitHub
+1. Go to [github.com/settings/developers](https://github.com/settings/developers) → **OAuth Apps → New OAuth App**.
+2. Fill in:
+   - Homepage URL: `https://YOUR-DOMAIN`
+   - Authorization callback URL: `https://YOUR-DOMAIN/auth/github/callback`
+3. Click **Generate a new client secret**.
+4. Copy the keys into `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+
+A GitHub OAuth app accepts only one callback URL. For a second domain, create a second OAuth app.
+
+### LinkedIn
+1. Go to [linkedin.com/developers/apps](https://www.linkedin.com/developers/apps) → **Create app**. It needs a LinkedIn Page; your own or a new free one works.
+2. On the app's **Products** tab, request **Sign In with LinkedIn using OpenID Connect**. It's approved instantly.
+3. On the **Auth** tab, add the redirect URL `https://YOUR-DOMAIN/auth/linkedin/callback`.
+4. Copy the keys into `LINKEDIN_CLIENT_ID` and `LINKEDIN_CLIENT_SECRET`.
+
+### Microsoft (personal, work and school accounts)
+1. Go to [entra.microsoft.com](https://entra.microsoft.com) → **App registrations → New registration**. A free Microsoft account works.
+2. Fill in:
+   - Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**.
+   - Redirect URI: **Web**, `https://YOUR-DOMAIN/auth/microsoft/callback`.
+3. Under **Certificates & secrets → New client secret**, copy the secret **Value**, not its ID.
+4. Copy the **Application (client) ID** and that value into `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET`.
+
+Microsoft client secrets expire, after 24 months at most, so set a reminder to replace yours.
+
+### How accounts work
+- Each sign-in method is tied to that provider's own user ID, **never to the email address**. Someone using the same email on a different provider can't get into your account.
+- To use several methods on one account, sign in once, then use **Continue with …** for another provider while you're signed in. It's added to the same account.
+- A provider account that's already attached to a different Clarity AI account can't be moved over.
 
 ## 5. Your own subdomain (Hostinger)
 
@@ -172,7 +206,7 @@ Example: `clarityai.geekypmtausif.com`. In **hPanel**, go to **Domains → geeky
 |---|---|
 | "Accounts aren't available" | Set `DATABASE_URL` and a 32+ character `SESSION_SECRET`, then redeploy. `/api/health` shows `"database"`: `"ready"`, or the error that stopped the automatic setup. |
 | "cannot insert multiple commands into a prepared statement" | You pasted `db/schema.sql` into a one-statement query box (such as Vercel's Storage tab). You don't need to: the app sets up its tables itself. |
-| Google says `redirect_uri_mismatch` | The exact URL `https://YOUR-DOMAIN/auth/google/callback` must be listed in Google Cloud, and `PUBLIC_URL` must match it. |
+| `redirect_uri_mismatch` or "redirect URI isn't valid" (any provider) | The exact URL `https://YOUR-DOMAIN/auth/<provider>/callback` must be registered with that provider, and `PUBLIC_URL` must match it. |
 | No transcript in Safari | `"stt"` must be `"whisper"` in `/api/health`; it needs a Groq key. |
 | Camera coach "couldn't start" | The browser blocked the camera, or the device lacks WebGL/WebAssembly. Practice still works without it. |
 | Reports time out on Vercel | `vercel.json` sets a 60 s function limit. Groq is usually done in 5–15 s. Check the function logs for `judge:` lines. |

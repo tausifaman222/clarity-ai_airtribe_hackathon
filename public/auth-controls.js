@@ -31,9 +31,8 @@ async function loadAccountControls() {
       };
       controls.append(button);
     } else if (h.accounts !== false) {
-      if (h.google) controls.append(el("a", { className: "btn sm google-btn", href: `/auth/google?return=${encodeURIComponent("/" + (location.hash || ""))}` }, "Continue with Google"));
       controls.append(el("a", { className: "btn sm", href: "/sign-in" }, "Sign in"));
-      if (!h.google) controls.append(el("a", { className: "btn sm primary", href: "/sign-up" }, "Create account"));
+      controls.append(el("a", { className: "btn sm primary", href: "/sign-up" }, "Create account"));
     }
     target.replaceChildren(controls);
   }

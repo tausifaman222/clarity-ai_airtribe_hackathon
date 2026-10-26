@@ -37,9 +37,9 @@ ALTER TABLE clarity_auth_users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE clarity_auth_users DROP CONSTRAINT IF EXISTS clarity_auth_password_hash_format;
 ALTER TABLE clarity_auth_users ADD CONSTRAINT clarity_auth_password_hash_format
   CHECK (password_hash IS NULL OR password_hash LIKE 'scrypt$%');
+-- v3: any sign-in provider can be an account's only login, so this check moved into the app.
 ALTER TABLE clarity_auth_users DROP CONSTRAINT IF EXISTS clarity_auth_has_login;
-ALTER TABLE clarity_auth_users ADD CONSTRAINT clarity_auth_has_login
-  CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL);
+ALTER TABLE clarity_auth_users ADD COLUMN IF NOT EXISTS sso_provider TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS clarity_auth_users_google_sub ON clarity_auth_users(google_sub) WHERE google_sub IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS clarity_auth_sessions (
@@ -68,3 +68,17 @@ CREATE TABLE IF NOT EXISTS clarity_visitors (
   visitor_hash CHAR(64) PRIMARY KEY,
   first_day DATE NOT NULL
 );
+
+-- v3: sign-in identities (Google, GitHub, LinkedIn, Microsoft). Matched by the provider's stable user id, never by email.
+CREATE TABLE IF NOT EXISTS clarity_auth_identities (
+  provider TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  user_id UUID NOT NULL REFERENCES clarity_auth_users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (provider, subject)
+);
+CREATE INDEX IF NOT EXISTS clarity_auth_identities_user ON clarity_auth_identities(user_id);
+INSERT INTO clarity_auth_identities(provider, subject, user_id)
+  SELECT 'google', google_sub, id FROM clarity_auth_users WHERE google_sub IS NOT NULL
+  ON CONFLICT DO NOTHING;
+UPDATE clarity_auth_users SET sso_provider = 'google' WHERE google_sub IS NOT NULL AND sso_provider IS NULL;

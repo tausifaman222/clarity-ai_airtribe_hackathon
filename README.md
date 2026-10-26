@@ -64,7 +64,7 @@ It never judges grammar, accent or appearance, only substance and delivery.
 | 🧠 | **Multi-agent review** | A lead reviewer and an independent evaluator run in parallel. A referee merges their reviews, and a quote verifier checks every quote against your transcript. |
 | 🔁 | **Agentic practice loop** | A planner reads your history, finds recurring gaps and sets three drills. A drill coach and a follow-up interviewer grade each rep. |
 | 🌍 | **16 languages** | English (IN/US/UK), Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi, Spanish, French, German, Portuguese, Arabic, Indonesian, Japanese and Chinese. The AI replies in yours. |
-| 📈 | **Progress** | Google or username sign-in, saved reports, trends, PDF export, an opt-in leaderboard and one-click account deletion. |
+| 📈 | **Progress** | Sign in with Google, GitHub, LinkedIn, Microsoft or a username; saved reports, trends, PDF export, an opt-in leaderboard and one-click account deletion. |
 | 🔌 | **MCP server** | Claude, ChatGPT, Cursor and custom agents can call Clarity AI's tools through the Model Context Protocol at `/mcp`. |
 | 🧩 | **Open-source first** | Open-weight `gpt-oss-120b` and Whisper on Groq, Gemini as a fallback, and MediaPipe. It works with any OpenAI-compatible API, and with no key it runs in a clearly labelled offline mode. |
 
@@ -159,7 +159,7 @@ Open `http://localhost:5000/api/health?deep=1` to check that every integration i
 | **Replit** | Import from GitHub; `.replit` is included |
 | **Docker** (Railway, Fly.io, Cloud Run, a VPS) | `docker build -t clarity-ai . && docker run -p 5000:5000 --env-file .env clarity-ai` |
 
-Or run `npm run setup` on your computer: it tests every key with a real call, uploads them to Vercel, creates the tables and deploys. [SETUP.md](SETUP.md) walks through each host, Google sign-in, ElevenLabs and pointing your own subdomain (for example on Hostinger).
+Or run `npm run setup` on your computer: it tests every key with a real call, uploads them to Vercel, creates the tables and deploys. [SETUP.md](SETUP.md) walks through each host, sign-in with Google, GitHub, LinkedIn and Microsoft, ElevenLabs and pointing your own subdomain (for example on Hostinger).
 
 ## Configuration
 
@@ -173,7 +173,7 @@ All configuration is through environment variables; see [`.env.example`](.env.ex
 | `FALLBACK_LLM_BASE_URL`, `FALLBACK_LLM_API_KEY`, `FALLBACK_LLM_MODEL` | | Backup provider, used automatically on failures or rate limits |
 | `DATABASE_URL` (or `POSTGRES_URL`) | for accounts | Postgres connection string |
 | `SESSION_SECRET` | for accounts | 32+ random characters |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_URL` | | Google sign-in |
+| `GOOGLE_*`, `GITHUB_*`, `LINKEDIN_*`, `MICROSOFT_*` (`_CLIENT_ID`, `_CLIENT_SECRET`), `PUBLIC_URL` | | Sign-in buttons, one per provider that has keys (all free) |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_MEERA`, `ELEVENLABS_VOICE_COACH` | | Natural voices |
 | `STT_API_KEY`, `STT_MODEL` | | Whisper speech-to-text (reuses the Groq key by default) |
 | `MCP_TOKEN` | | Require a Bearer token on `/mcp` |
@@ -202,7 +202,8 @@ Clarity AI is a remote MCP server (Streamable HTTP, JSON-RPC 2.0). To connect it
 - **Accounts:**
   - Passwords are hashed with scrypt.
   - Sessions are random tokens in HttpOnly, SameSite cookies, and only their hashes are stored.
-  - Google sign-in uses OAuth 2.0 with PKCE and a signed state cookie.
+  - Sign-in with Google, GitHub, LinkedIn and Microsoft uses OAuth 2.0 with PKCE (where supported) and a signed state cookie. Accounts are matched by the provider's user ID, never by email.
+  - Anti-clickjacking (`frame-ancestors 'none'`), HSTS and `nosniff` headers on every response.
 - **Abuse protection:** rate limiting on AI routes, login lockout after repeated failures, and same-origin checks on account changes.
 - **Deletion:** users can delete their account and all data in one click.
 - See [SECURITY.md](SECURITY.md) to report a vulnerability, and the in-app [privacy policy](public/privacy.html).
@@ -218,7 +219,7 @@ Clarity AI is a remote MCP server (Streamable HTTP, JSON-RPC 2.0). To connect it
 │   ├── agents.js          # Practice planner, drill coach, follow-up interviewer
 │   ├── agent-team.js      # Agent manifest and quote verifier
 │   ├── account-auth.js    # Username accounts and sessions
-│   ├── google-auth.js     # Google OAuth (PKCE)
+│   ├── oauth.js           # Google, GitHub, LinkedIn, Microsoft sign-in
 │   ├── community.js       # Saved reports and leaderboard
 │   ├── voice.js           # ElevenLabs TTS and Whisper STT
 │   ├── mcp.js             # MCP server
@@ -247,7 +248,7 @@ npm test               # unit tests (PGlite) + API and browser tests (Playwright
 ```
 
 The suite runs against an isolated offline server with outbound network blocked. It covers:
-- Google OAuth: PKCE, signed state, account reuse and deletion
+- Sign-in for all four providers: PKCE, signed state, account linking, no email-based takeover, safe redirects, deletion
 - Body-language maths
 - Scenario validation
 - The planner's analysis

@@ -68,7 +68,7 @@ test("Google sign-in: PKCE redirect, signed state, account creation, reuse and d
     assert.ok(session, "session cookie set");
     const cookie = session.split(";")[0];
     const me = await (await fetch(`${origin}/api/auth/me`, { headers: { cookie } })).json();
-    assert.deepEqual(me.user, { username: "priya.sharma", displayName: "Priya Sharma", avatarUrl: "https://example.com/p.png", google: true });
+    assert.deepEqual(me.user, { username: "priya.sharma", displayName: "Priya Sharma", avatarUrl: "https://example.com/p.png", google: true, provider: "google" });
 
     // Signing in again with the same Google account reuses it.
     const again = await fetch(`${origin}/auth/google`, { redirect: "manual" });

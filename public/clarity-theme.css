@@ -78,6 +78,9 @@ mark.h { color: #8f3030; }
 .avatar-img { border-radius: 50%; object-fit: cover; }
 .google-btn { display: inline-flex; align-items: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #c7ccd1; }
 #googleBox .google-btn { width: 100%; justify-content: center; margin-top: 14px; }
+.sso-list { display: grid; gap: 10px; margin-top: 14px; }
+.sso-btn { display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #c7ccd1; }
+.sso-btn svg { flex: none; }
 .auth-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0 0; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .legal { max-width: 760px; padding-top: 32px; line-height: 1.7; }
