@@ -72,3 +72,6 @@
   .leader-table td, .leader-table th { padding: 12px 5px; }
   .topbar-in .stepper { order: 4; width: 100%; justify-content: center; }
 }
+/* Contact page: honeypot field is invisible to people (bots fill it) */
+.contact-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.account-field textarea.field { min-height: 88px; padding-top: 12px; resize: vertical; font: inherit; }

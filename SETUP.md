@@ -161,7 +161,7 @@ Example: `clarityai.geekypmtausif.com`. In **hPanel**, go to **Domains → geeky
 ## 6. Before launch checklist
 
 - [ ] `/api/health?deep=1` is all green.
-- [ ] In `public/privacy.html` and `public/terms.html`, replace `[your contact email]`.
+- [ ] Set `CONTACT_WHATSAPP` (your WhatsApp number with country code, digits only) so the contact page works. Optional: `CONTACT_NAME`, and `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` from Cloudflare Turnstile (free) for a stronger bot check.
 - [ ] Optional: add Airtribe's official logo as `public/airtribe-logo.png`.
 - [ ] The Google consent screen is **published**, not in testing.
 - [ ] Optional: set `MCP_TOKEN` if you don't want the `/mcp` tools to be public.

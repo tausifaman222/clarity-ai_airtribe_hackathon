@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Contact · Clarity AI</title>
+  <meta name="description" content="Talk to the makers of Clarity AI on WhatsApp.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/clarity-theme.css"><link rel="stylesheet" href="/community.css">
+</head>
+<body><main id="contact-root"><div class="auth-page">
+  <a href="/" class="auth-back">← Back to Clarity AI</a>
+  <section class="auth-card" aria-labelledby="contactTitle">
+    <img src="/logo.svg" alt="Clarity AI" width="136">
+    <p class="auth-kicker">TALK TO THE MAKERS</p>
+    <h1 id="contactTitle">Message us on WhatsApp</h1>
+    <p class="muted">Feedback, a bug, a partnership or a hello: tell us who you are and what it's about. After a quick check we'll open WhatsApp with your message ready to send.</p>
+    <form id="contactForm" novalidate>
+      <label class="account-field">Your name
+        <input class="field" name="name" type="text" autocomplete="name" minlength="2" maxlength="60" required placeholder="e.g. Priya Sharma">
+      </label>
+      <label class="account-field">What's it about?
+        <textarea class="field" name="reason" rows="3" maxlength="400" required placeholder="e.g. Feedback on the interview practice, or a partnership idea"></textarea>
+      </label>
+      <label class="contact-hp" aria-hidden="true">Leave this empty <input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+      <label class="account-field"><span id="question">Quick check: loading…</span>
+        <input class="field" name="answer" type="text" inputmode="numeric" autocomplete="off" maxlength="3" required placeholder="Your answer">
+      </label>
+      <div id="turnstile"></div>
+      <p class="account-feedback" id="contactFeedback" role="alert" aria-live="polite"></p>
+      <button class="btn primary lg" type="submit">Continue to WhatsApp</button>
+    </form>
+    <p class="small muted account-safety">This check keeps spam bots away, so real messages reach us. We don't store what you type here; it goes straight into your WhatsApp message.</p>
+  </section>
+</div></main>
+<footer class="site-footer"><p class="made-with">Built at the <span class="airtribe-mark"><img src="/airtribe-logo.png" alt="" height="18" onerror="this.remove()">Airtribe</span> AI Builders Day hackathon · Made with <span aria-label="love">❤️</span> by <a href="https://www.linkedin.com/in/ashishkumar620" target="_blank" rel="noopener">Ashish Kumar</a> &amp; <a href="https://www.linkedin.com/in/tausif222" target="_blank" rel="noopener">Tausif</a></p></footer>
+<script type="module" src="/contact.js"></script></body>
+</html>
