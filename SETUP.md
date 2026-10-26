@@ -72,9 +72,7 @@ FALLBACK_LLM_MODEL=gemini-flash-latest
    - Leave the build settings empty; `vercel.json` handles them.
 2. Open **Storage → Create Database → Neon (Postgres)** and connect it to the project. This sets `DATABASE_URL` / `POSTGRES_URL`.
 3. Under **Settings → Environment Variables**, add `LLM_PROVIDER`, `LLM_API_KEY`, `SESSION_SECRET`, and any optional keys.
-4. Create the tables, once. Either:
-   - open Neon's **SQL Editor** and paste the contents of `db/schema.sql`, then run it; or
-   - run `DATABASE_URL=... npm run db:migrate` from your computer.
+4. Nothing to run for the tables: the app creates them automatically the first time it starts with a database (check `"database": "ready"` in `/api/health`). To manage them yourself instead, set `AUTO_MIGRATE=0` and run `npm run db:migrate`.
 5. Click **Deploy**. Every `git push` redeploys automatically.
 
 ### B. Replit
@@ -82,7 +80,7 @@ FALLBACK_LLM_MODEL=gemini-flash-latest
 1. Choose **Create → Import from GitHub** and pick the repo.
 2. Open **Tools → Database** and create a PostgreSQL database. This sets `DATABASE_URL`.
 3. Open **Tools → Secrets** and add `LLM_API_KEY` and `SESSION_SECRET`. `.replit` already sets the Groq provider.
-4. Open the **Shell** and run `npm install && npm run db:migrate`.
+4. Open the **Shell** and run `npm install` (tables are created automatically on first start).
 5. Click **Run** to test, then **Publish** (Autoscale or Reserved VM).
 
 ### C. Render, Railway, Fly or any Docker host
@@ -90,7 +88,7 @@ FALLBACK_LLM_MODEL=gemini-flash-latest
 - **Render:** choose **New → Blueprint**, pick the repo, and fill in the keys it asks for. `render.yaml` creates the web app **and** a Postgres database, connects them, generates `SESSION_SECRET`, and creates the tables on every deploy, so you don't need to run the migration yourself. It uses the Starter web plan and the basic-256mb database (about $13/month together, no cold starts); see the comment at the top of the file for a free-tier version.
 - **Anything with Docker:** run `docker build -t clarity-ai . && docker run -p 5000:5000 --env-file .env clarity-ai`.
 
-Then run `npm run db:migrate` once against your database.
+Tables are created automatically on first start.
 
 ---
 
@@ -172,7 +170,8 @@ Example: `clarityai.geekypmtausif.com`. In **hPanel**, go to **Domains → geeky
 
 | Symptom | Fix |
 |---|---|
-| "Accounts aren't available" | Set `DATABASE_URL` and a 32+ character `SESSION_SECRET`, then run `npm run db:migrate`. |
+| "Accounts aren't available" | Set `DATABASE_URL` and a 32+ character `SESSION_SECRET`, then redeploy. `/api/health` shows `"database"`: `"ready"`, or the error that stopped the automatic setup. |
+| "cannot insert multiple commands into a prepared statement" | You pasted `db/schema.sql` into a one-statement query box (such as Vercel's Storage tab). You don't need to: the app sets up its tables itself. |
 | Google says `redirect_uri_mismatch` | The exact URL `https://YOUR-DOMAIN/auth/google/callback` must be listed in Google Cloud, and `PUBLIC_URL` must match it. |
 | No transcript in Safari | `"stt"` must be `"whisper"` in `/api/health`; it needs a Groq key. |
 | Camera coach "couldn't start" | The browser blocked the camera, or the device lacks WebGL/WebAssembly. Practice still works without it. |
