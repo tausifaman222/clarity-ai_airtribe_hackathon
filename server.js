@@ -7,6 +7,7 @@ import { aiStatus, callLLMJson, llmHealth } from "./llm.js";
 import { STAGES, stageById, checklistText, FILLERS, HEDGES, countPhrases, sum, wordCount, DEMO_PITCH } from "./public/rubrics.js";
 import { offlineCoach, offlineVerdict, offlineJudge } from "./offline.js";
 import { registerCommunity, saveVerifiedAttempt, database, userIdOf } from "./server/community.js";
+import { ensureSchema } from "./server/db.js";
 import { PITCH_SECONDS } from "./public/practice-config.js";
 import { addReportGuidance } from "./public/pitch-guidance.js";
 import { registerAccountAuth } from "./server/account-auth.js";
@@ -38,6 +39,13 @@ app.use((req, res, next) => {
 // JSON for the API; /api/transcribe takes raw audio and parses its own body.
 const jsonSmall = express.json({ limit: "300kb" });
 app.use((req, res, next) => (req.path === "/api/transcribe" ? next() : jsonSmall(req, res, next)));
+// Tables are created automatically on first start (set AUTO_MIGRATE=0 to manage them yourself).
+let dbStatus = database ? "starting" : null;
+const schemaReady = database && process.env.AUTO_MIGRATE !== "0"
+  ? ensureSchema().then(r => { dbStatus = "ready"; return r; }).catch(e => { dbStatus = `error: ${String(e.message).slice(0, 160)}`; console.error("auto-migrate:", e.message); })
+  : Promise.resolve((dbStatus &&= "ready", null));
+app.use(async (req, res, next) => { if (database && /^\/(api|auth|sign-)/.test(req.path)) await schemaReady; next(); });
+
 const accountAuth = registerAccountAuth(app, { db: database });
 registerGoogleAuth(app, { db: database });
 app.use("/api", accountAuth.sessionMiddleware);
@@ -245,8 +253,9 @@ app.get("/api/health", async (req, res) => {
   const a = aiStatus();
   const body = { ok: true, ai: a.ready, mode: a.ready ? "ai" : "offline", model: a.ready ? a.model : null, fallback: a.fallback, problem: a.problem,
     tts: elevenKey() ? "elevenlabs" : "browser", stt: sttConfig().ready ? "whisper" : "browser", evaluator: a.ready,
-    google: googleConfigured() && !!database, accounts: !!database && (process.env.SESSION_SECRET || "").length >= 32, contact: contactConfigured(),
+    google: googleConfigured() && !!database, accounts: !!database && dbStatus === "ready" && (process.env.SESSION_SECRET || "").length >= 32, contact: contactConfigured(),
     // Which commit is live (Vercel, Render, Railway and most hosts set one of these).
+    ...(database ? { database: dbStatus } : {}),
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || process.env.RENDER_GIT_COMMIT || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || process.env.GIT_COMMIT || "").slice(0, 7) || null };
   if (req.query.deep === "1") [body.llm, body.voice] = await Promise.all([a.ready ? llmHealth() : null, voiceStatus()]);
   res.set("Cache-Control", "no-store").json(body);
