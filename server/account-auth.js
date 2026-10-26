@@ -72,7 +72,8 @@ async function passwordMatches(password, encoded) {
 }
 
 export function sessionUser(user) {
-  return user ? { username: user.username, displayName: user.display_name || null, avatarUrl: user.avatar_url || null, google: !!user.google_sub } : null;
+  return user ? { username: user.username, displayName: user.display_name || null, avatarUrl: user.avatar_url || null,
+    google: !!user.google_sub, provider: user.sso_provider || (user.google_sub ? "google" : null) } : null;
 }
 
 function noStore(res) {
@@ -92,7 +93,7 @@ export function createAccountSessionMiddleware(db) {
     }
     try {
       const { rows } = await db.query(`
-        SELECT u.id, u.username, u.display_name, u.avatar_url, u.google_sub
+        SELECT u.id, u.username, u.display_name, u.avatar_url, u.google_sub, u.sso_provider
         FROM clarity_auth_sessions s
         JOIN clarity_auth_users u ON u.id = s.user_id
         WHERE s.session_hash = $1 AND s.expires_at > NOW()
@@ -250,7 +251,7 @@ export function registerAccountAuth(app, { db, sessionSecret = process.env.SESSI
       if (attempt.length) return tooManyAttempts(res, attempt);
       await recordFailure(db, keys);
       const result = await db.query(
-        "SELECT id,username,password_hash,display_name,avatar_url,google_sub FROM clarity_auth_users WHERE username=$1 LIMIT 1",
+        "SELECT id,username,password_hash,display_name,avatar_url,google_sub,sso_provider FROM clarity_auth_users WHERE username=$1 LIMIT 1",
         [username],
       );
       const user = result.rows[0];

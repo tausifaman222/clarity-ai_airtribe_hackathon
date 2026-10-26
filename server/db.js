@@ -10,7 +10,7 @@ export const database = url
 database?.on("error", error => console.error("Postgres pool error:", error.code || error.message));
 
 // Bump when db/schema.sql changes, so every deployment applies it once.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const LOCK_ID = 727401; // any constant: serialises migrations when several instances start at once
 
 // Creates or updates the tables automatically. Fast path: one SELECT when the schema is already current.

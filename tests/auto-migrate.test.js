@@ -8,7 +8,7 @@ const { ensureSchema, SCHEMA_VERSION } = await import("../server/db.js");
 
 test("a brand-new database gets every table automatically, even with several instances starting at once", { skip: !url && "set TEST_DATABASE_URL to run" }, async () => {
   const admin = new pg.Pool({ connectionString: url });
-  await admin.query(`DROP TABLE IF EXISTS clarity_schema_version, clarity_attempts, clarity_auth_sessions, clarity_auth_login_limits,
+  await admin.query(`DROP TABLE IF EXISTS clarity_schema_version, clarity_attempts, clarity_auth_identities, clarity_auth_sessions, clarity_auth_login_limits,
     clarity_auth_users, clarity_event_counts, clarity_visitors CASCADE`);
   const pools = [1, 2, 3].map(() => new pg.Pool({ connectionString: url }));
   try {
@@ -16,7 +16,7 @@ test("a brand-new database gets every table automatically, even with several ins
     assert.ok(results.every(r => r.ok));
     assert.equal(results.filter(r => r.migrated).length, 1, "exactly one instance runs the migration");
     const tables = (await admin.query(`SELECT tablename FROM pg_tables WHERE tablename LIKE 'clarity_%' ORDER BY 1`)).rows.map(r => r.tablename);
-    assert.deepEqual(tables, ["clarity_attempts", "clarity_auth_login_limits", "clarity_auth_sessions", "clarity_auth_users",
+    assert.deepEqual(tables, ["clarity_attempts", "clarity_auth_identities", "clarity_auth_login_limits", "clarity_auth_sessions", "clarity_auth_users",
       "clarity_event_counts", "clarity_schema_version", "clarity_visitors"]);
     assert.equal((await admin.query("SELECT version FROM clarity_schema_version")).rows[0].version, SCHEMA_VERSION);
     const again = await ensureSchema(pools[0]);                               // later starts: one quick SELECT
