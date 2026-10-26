@@ -20,11 +20,11 @@ test("falls back to the backup provider when the main one is rate-limited", asyn
   });
   try {
     const { callLLMJson, aiStatus } = await import(`../llm.js?fb=${Date.now()}`);
-    assert.equal(aiStatus().fallback, "gemini-2.5-flash");
+    assert.equal(aiStatus().fallback, "gemini-flash-latest");
     assert.deepEqual(await callLLMJson("sys", "user"), { answer: "from gemini" });
     assert.match(calls[0].url, /api\.groq\.com/);
     assert.match(calls[1].url, /generativelanguage\.googleapis\.com/);
-    assert.equal(calls[1].body.model, "gemini-2.5-flash");
+    assert.equal(calls[1].body.model, "gemini-flash-latest");
   } finally { restore(); }
 });
 

@@ -58,6 +58,9 @@ export async function synthesize(text, who, fetchImpl = (...a) => fetch(...a)) {
   return Buffer.from(await r.arrayBuffer());
 }
 
+// ElevenLabs puts a machine-readable reason in detail.status, e.g. invalid_api_key or missing_permissions.
+const elevenReason = d => { try { const j = JSON.parse(d).detail; return String(j?.status || j?.message || j).slice(0, 80); } catch { return d.slice(0, 80) || "no detail"; } };
+
 // A real check, not just "a key is set": synthesises one short word, at most every 30 minutes.
 let ttsCheck = null;
 export async function voiceStatus(fetchImpl) {
@@ -69,7 +72,8 @@ export async function voiceStatus(fetchImpl) {
     const d = e.detail || "";
     const reason = e.status === 402 || /quota|credits/i.test(d) ? "ElevenLabs credits are used up."
       : /unusual_activity|free tier/i.test(d) ? "ElevenLabs blocked the free tier for this account."
-      : e.status === 401 ? "ElevenLabs rejected the API key."
+      : e.status === 401 && /missing_permissions|permission/i.test(d) ? "This ElevenLabs key is restricted: edit it in ElevenLabs → API keys and allow Text to Speech and Voices (read)."
+      : e.status === 401 ? `ElevenLabs rejected the API key (${elevenReason(d)}). Copy it again from ElevenLabs → API keys, with no spaces.`
       : `ElevenLabs error: ${e.message.slice(0, 160)}`;
     result = { provider: "elevenlabs", ok: false, error: reason, fallback: "browser" };
   }

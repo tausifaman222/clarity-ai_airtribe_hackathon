@@ -80,7 +80,8 @@ async function checkKeys(vars) {
     const t = (await r.text()).slice(0, 200);
     return /quota|credit/i.test(t) ? "out of credits"
       : /unusual_activity|free tier/i.test(t) ? "ElevenLabs blocked the free tier for this account (a paid plan or another account fixes it)"
-      : r.status === 401 ? "key rejected" : `error ${r.status}: ${t}`;
+      : /missing_permissions/i.test(t) ? "key is restricted: allow Text to Speech and Voices (read) in ElevenLabs → API keys"
+      : r.status === 401 ? `key rejected (${t})` : `error ${r.status}: ${t}`;
   });
   for (const [name, ok] of results) say(`  ${ok === true ? green("✓") : red("✗")} ${name}${ok === true ? "" : `: ${ok}`}`);
   return results.every(([, ok]) => ok === true);
@@ -107,7 +108,7 @@ async function main() {
   if (!vars.LLM_API_KEY) say(dim("  No AI key: the app will run in offline (keyword) mode."));
   vars.ELEVENLABS_API_KEY = await ask("ElevenLabs API key (Enter to skip)", { secret: true, fallback: current.ELEVENLABS_API_KEY });
   vars.FALLBACK_LLM_API_KEY = await ask("Gemini API key for backup (Enter to skip)", { secret: true, fallback: current.FALLBACK_LLM_API_KEY });
-  if (vars.FALLBACK_LLM_API_KEY) Object.assign(vars, { FALLBACK_LLM_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai", FALLBACK_LLM_MODEL: "gemini-2.5-flash" });
+  if (vars.FALLBACK_LLM_API_KEY) Object.assign(vars, { FALLBACK_LLM_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai", FALLBACK_LLM_MODEL: "gemini-flash-latest" });
   vars.SESSION_SECRET = current.SESSION_SECRET || randomBytes(36).toString("base64url");
   say(dim("  Session secret generated automatically."));
 

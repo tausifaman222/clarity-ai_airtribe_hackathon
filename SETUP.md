@@ -58,7 +58,7 @@ For the backup provider, use these values:
 
 ```
 FALLBACK_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-FALLBACK_LLM_MODEL=gemini-2.5-flash
+FALLBACK_LLM_MODEL=gemini-flash-latest
 ```
 
 ---
