@@ -277,7 +277,7 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and ou
 
 Built at the **Airtribe AI Builders Day** hackathon by **[Ashish Kumar](https://www.linkedin.com/in/ashishkumar620)** & **[Tausif](https://www.linkedin.com/in/tausif222)**, with ❤️.
 
-Questions, feedback or partnerships: [WhatsApp Tausif](https://wa.me/919609378839?text=Hi%20Tausif%2C%20I%20found%20Clarity%20AI) · [LinkedIn: Ashish](https://www.linkedin.com/in/ashishkumar620) · [LinkedIn: Tausif](https://www.linkedin.com/in/tausif222)
+Questions, feedback or partnerships: [contact us on WhatsApp](https://clarity-ai-airtribe-hackathon.vercel.app/contact) (a quick human check keeps spam out) · [Ashish on LinkedIn](https://www.linkedin.com/in/ashishkumar620) · [Tausif on LinkedIn](https://www.linkedin.com/in/tausif222)
 
 Thanks to the open-source projects that make this possible: [MediaPipe](https://github.com/google-ai-edge/mediapipe), [Whisper](https://github.com/openai/whisper), [gpt-oss](https://github.com/openai/gpt-oss), [Express](https://expressjs.com), [node-postgres](https://node-postgres.com), [PGlite](https://pglite.dev) and [Playwright](https://playwright.dev).
 
