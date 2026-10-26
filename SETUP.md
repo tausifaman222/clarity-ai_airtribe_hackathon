@@ -43,7 +43,7 @@ If you'd rather click through the dashboards, follow the manual steps below.
 | **AI (required)**: open-source models, free | [console.groq.com](https://console.groq.com) → API Keys | `LLM_API_KEY` |
 | Session secret (required for accounts) | Run `openssl rand -base64 48`, or type 40+ random characters | `SESSION_SECRET` |
 | Database (for accounts, history, leaderboard) | Neon (via Vercel), Supabase, Replit or Render Postgres | `DATABASE_URL` |
-| Natural voices (optional) | [elevenlabs.io](https://elevenlabs.io) → Profile → API key | `ELEVENLABS_API_KEY` |
+| Natural voices (optional) | [elevenlabs.io](https://elevenlabs.io) → Developers → API keys | `ELEVENLABS_API_KEY` |
 | Backup AI (optional) | [aistudio.google.com](https://aistudio.google.com) → Get API key (Gemini) | `FALLBACK_LLM_API_KEY` |
 
 Add these provider settings too, exactly as shown:
@@ -107,7 +107,7 @@ Open `https://YOUR-APP/api/health?deep=1`. You want to see:
 - `"ai": false`: no AI key is set. The app still works in offline mode.
 - `llm.main.ok: false`: a real test call failed; `error` says why (key rejected, rate limited, model not found). If `llm.fallback.ok` is true, users are served by the backup.
 - `"accounts": false`: either `DATABASE_URL` is missing or `SESSION_SECRET` is shorter than 32 characters.
-- `voice.ok: false`: the `error` field says why (wrong key, or no credits). Users hear the browser voice instead.
+- `voice.ok: false`: the `error` field says why (wrong or restricted key, no credits). Users hear the free **Kokoro** voice instead: an open-source model (Apache-2.0) that downloads once (~90 MB) and runs on their device, English only. On data-saver, slow connections or low-memory phones, and for other languages, the browser voice is used.
 
 Then try a template from the home page in Chrome with the camera coach on, and once in Safari to check the Whisper path.
 

@@ -59,7 +59,7 @@ It never judges grammar, accent or appearance, only substance and delivery.
 | | Feature | Details |
 |---|---|---|
 | 🎯 | **Practise anything** | A scenario designer agent turns a plain description (*"PM interview at a fintech next week"*) into a custom checklist, practice partner and time limit. There are also 8 templates and a stage-aware startup-pitch track. |
-| 🗣️ | **Voice-first, any browser** | Live captions in Chrome and Edge; open-source **Whisper** transcription in Safari and Firefox. Natural **ElevenLabs** voices, with the browser voice as a fallback. |
+| 🗣️ | **Voice-first, any browser** | Live captions in Chrome and Edge; open-source **Whisper** transcription in Safari and Firefox. Natural **ElevenLabs** voices; if there's no key or it fails, the free open-source **Kokoro** voice runs on the visitor's device, then the browser voice. |
 | 📷 | **On-device camera coach** | **MediaPipe** face and pose landmarks give live nudges on eye contact, posture, gestures and steadiness, plus a body-language score. Video never leaves the device. |
 | 🧠 | **Multi-agent review** | A lead reviewer and an independent evaluator run in parallel. A referee merges their reviews, and a quote verifier checks every quote against your transcript. |
 | 🔁 | **Agentic practice loop** | A planner reads your history, finds recurring gaps and sets three drills. A drill coach and a follow-up interviewer grade each rep. |
@@ -231,7 +231,8 @@ Clarity AI is a remote MCP server (Streamable HTTP, JSON-RPC 2.0). To connect it
 │   ├── scenarios.js       # Scenario templates and validation (shared with the server)
 │   ├── rubrics.js         # Startup-pitch stage rubrics (shared)
 │   ├── presence*.js       # On-device camera coach
-│   └── speech.js          # Recorder and Whisper client
+│   ├── speech.js          # Recorder and Whisper client
+│   └── kokoro-voice.js    # Free on-device Kokoro voice (fallback)
 ├── db/schema.sql          # Idempotent schema; apply with `npm run db:migrate`
 ├── tests/                 # node:test unit tests and Playwright API/browser tests
 ├── docs/                  # Architecture, API, launch kit, screenshots
@@ -250,7 +251,7 @@ The suite runs against an isolated offline server with outbound network blocked.
 - Body-language maths
 - Scenario validation
 - The planner's analysis
-- ElevenLabs voice fallback
+- Voice chain: ElevenLabs → on-device Kokoro (simulated model) → browser voice
 - Whisper routing
 - Postgres stats
 - The MCP protocol

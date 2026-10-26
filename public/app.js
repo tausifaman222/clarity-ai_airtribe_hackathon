@@ -10,6 +10,7 @@ import { improvementPlanHTML } from "./report-plan.js";
 import { Recorder, recorderSupported, transcribe, bindDictation } from "./speech.js";
 import { PresenceCoach, cameraSupported } from "./presence.js";
 import { SCENARIOS, scenarioTrack, scenarioById } from "./scenarios.js";
+import { warmKokoro, kokoroSpeech, kokoroSuitable } from "./kokoro-voice.js";
 
 // ---------- utilities ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -69,39 +70,51 @@ async function callWithRetry(path, body) {
 }
 
 // ---------- text-to-speech ----------
-// ElevenLabs (via our server, key stays server-side) when configured; otherwise, or on any failure,
-// the browser's speechSynthesis at rate 1.05 with an en-IN or hi-IN voice.
+// Voice chain, best first: ElevenLabs (via our server, key stays server-side) → Kokoro, a free open-source voice
+// that runs on this device → the browser's speechSynthesis (en-IN / hi-IN voice). Any failure falls to the next.
 let TTS_MODE = "browser";
 let HEALTH_V = {};
+const englishPractice = () => (S.micLang || "en-IN").toLowerCase().startsWith("en");
 const tts = {
-  voices: [], token: 0, done: null, audio: null, cache: new Map(),
+  voices: [], token: 0, done: null, audio: null, cache: new Map(), elevenDown: false,
   async fetchAudio(text, who) {
     const key = `${who}|${text}`;
     if (this.cache.has(key)) return this.cache.get(key);
     const res = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, voice: who }) });
-    if (!res.ok) throw new Error(`tts ${res.status}`);
+    if (!res.ok) { if (res.status >= 500 || res.status === 404) { this.elevenDown = true; this.warmFree(); } throw new Error(`tts ${res.status}`); }
     const url = URL.createObjectURL(await res.blob());
     this.cache.set(key, url);
     if (this.cache.size > 24) { const [k, u] = this.cache.entries().next().value; this.cache.delete(k); URL.revokeObjectURL(u); }
     return url;
   },
-  prefetch(text, who) { if (TTS_MODE === "elevenlabs") this.fetchAudio(text, who).catch(() => {}); },
+  useEleven() { return TTS_MODE === "elevenlabs" && !this.elevenDown; },
+  // Start downloading the on-device voice in the background (only when it will be needed).
+  warmFree() { if (englishPractice() && kokoroSuitable()) (window.requestIdleCallback || setTimeout)(() => warmKokoro()); },
+  prefetch(text, who) { if (this.useEleven()) this.fetchAudio(text, who).catch(() => {}); },
+  play(url, my) {
+    return new Promise((resolve, reject) => {
+      if (my !== this.token) return resolve();
+      const a = this.audio = new Audio(url); this.done = resolve;
+      a.onended = () => { this.done = null; resolve(); };
+      a.onerror = () => reject(new Error("audio"));
+      a.play().catch(reject);
+    });
+  },
   async speak(text, who = "coach") {
-    if (TTS_MODE !== "elevenlabs" || !text) return this.speakBrowser(text);
+    if (!text) return;
     this.stop();
-    const my = this.token;
-    try {
-      const url = await this.fetchAudio(String(text).slice(0, 1200), who);
-      if (my !== this.token) return;
-      await new Promise((resolve, reject) => {
-        const a = this.audio = new Audio(url); this.done = resolve;
-        a.onended = () => { this.done = null; resolve(); };
-        a.onerror = () => reject(new Error("audio"));
-        a.play().catch(reject);
-      });
-    } catch {
-      if (my === this.token) return this.speakBrowser(text); // fall back to the browser voice
+    const my = this.token, clipped = String(text).slice(0, 1200);
+    if (this.useEleven()) {
+      try { const url = await this.fetchAudio(clipped, who); if (my !== this.token) return; return await this.play(url, my); }
+      catch { if (my !== this.token) return; }
     }
+    if (englishPractice()) {
+      if (kokoroSuitable()) warmKokoro(); // no-op once loaded; this line uses the browser voice while it downloads
+      const url = await kokoroSpeech(clipped, who);
+      if (my !== this.token) { if (url) URL.revokeObjectURL(url); return; }
+      if (url) { try { await this.play(url, my); return; } catch { if (my !== this.token) return; } finally { setTimeout(() => URL.revokeObjectURL(url), 60000); } }
+    }
+    return this.speakBrowser(text);
   },
   init() {
     if (!window.speechSynthesis) return;
@@ -1360,7 +1373,7 @@ if (params.get("demo") === "1") {
 }
 try { if (!sessionStorage.getItem("sayso.visit")) { sessionStorage.setItem("sayso.visit", "1"); track("visit"); } } catch { track("visit"); }
 const HEALTH = api("/api/health").catch(() => ({}));
-HEALTH.then(h => { HEALTH_V = h || {}; TTS_MODE = h.tts || "browser"; if (!h.ai) { const p = $("#modePill"); p.hidden = false; p.textContent = "Offline mode"; p.title = "No AI key on the server: simple keyword rules are used."; } }).catch(() => {});
+HEALTH.then(h => { HEALTH_V = h || {}; TTS_MODE = h.tts || "browser"; if (TTS_MODE !== "elevenlabs") tts.warmFree(); if (!h.ai) { const p = $("#modePill"); p.hidden = false; p.textContent = "Offline mode"; p.title = "No AI key on the server: simple keyword rules are used."; } }).catch(() => {});
 window.addEventListener("hashchange", router);
 document.addEventListener("clarity:navigate", (e) => go(e.detail));
 document.addEventListener("clarity:signout", () => {
